@@ -97,10 +97,11 @@ def get_available_letters(letters_guessed):
       alphabetical order
     """
     #CREATE A LIST OF ALL LETTERS, THEN REMOVE THE GUESSED LETTERS FROM IT
-    all = list(string.ascii_lowercase)
+    entire = list(string.ascii_lowercase)
     for letter in letters_guessed:
-        all.remove(letter)
-    return all
+        if letter.lower() in entire:
+            entire.remove(letter.lower())
+    return "".join(entire)
 
 
 def hangman(secret_word, with_help):
@@ -201,8 +202,6 @@ def hangman(secret_word, with_help):
     for letter in letters_guessed:
         if letter in secret_word:
             unique_letters += 1
-
-    print(unique_letters)
     score = guesses_remaining + (4 * unique_letters) + (3 * len(secret_word))
     print("Your score is:", score)
 
