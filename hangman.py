@@ -54,8 +54,17 @@ def has_player_won(secret_word, letters_guessed):
     returns: boolean, True if all the letters of secret_word are in letters_guessed,
         False otherwise
     """
-    # FILL IN YOUR CODE HERE AND DELETE "pass"
-    pass
+    secret_letters = list(secret_word)
+
+    for letter in letters_guessed:
+        if letter in secret_letters:
+            while letter in secret_letters:
+              secret_letters.remove(letter)
+    
+    if secret_letters == []:
+        return True
+    else:
+        return False
 
 
 def get_word_progress(secret_word, letters_guessed):
@@ -67,8 +76,13 @@ def get_word_progress(secret_word, letters_guessed):
     returns: string, comprised of letters and asterisks (*) that represents
         which letters in secret_word have not been guessed so far
     """
-    # FILL IN YOUR CODE HERE AND DELETE "pass"
-    pass
+    progress = ""
+    for letter in secret_word:
+        if letter in letters_guessed:
+            progress += letter
+        else:
+            progress += "*"
+    return progress
 
 
 def get_available_letters(letters_guessed):
@@ -80,9 +94,10 @@ def get_available_letters(letters_guessed):
       letters have not yet been guessed. The letters should be returned in
       alphabetical order
     """
-    # FILL IN YOUR CODE HERE AND DELETE "pass"
-    pass
-
+    all = list(string.ascii_lowercase)
+    for letter in letters_guessed:
+        all.remove(letter)
+    return all
 
 
 def hangman(secret_word, with_help):
@@ -124,8 +139,8 @@ def hangman(secret_word, with_help):
 
     Follows the other limitations detailed in the problem write-up.
     """
-    # FILL IN YOUR CODE HERE AND DELETE "pass"
-    pass
+
+
 
 
 
@@ -135,9 +150,9 @@ def hangman(secret_word, with_help):
 if __name__ == "__main__":
     # To test your game, uncomment the following three lines.
 
-    # secret_word = choose_word(wordlist)
-    # with_help = False
-    # hangman(secret_word, with_help)
+    secret_word = choose_word(wordlist)
+    with_help = False
+    hangman(secret_word, with_help)
 
     # After you complete with_help functionality, change with_help to True
     # and try entering "!" as a guess!

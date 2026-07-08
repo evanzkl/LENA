@@ -462,7 +462,8 @@ if __name__ == '__main__':
     print("Running unit tests")
     sys.stdout = MyStream(sys.stdout)
     suite = unittest.TestSuite()
-    suite.addTest(unittest.makeSuite(TestPS2))
+    loader = unittest.TestLoader()
+    suite.addTest(loader.loadTestsFromTestCase(TestPS2))
     result = unittest.TextTestRunner(verbosity=2, resultclass=Results_600).run(suite)
 
     output = result.getOutput()
