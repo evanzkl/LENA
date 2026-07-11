@@ -214,7 +214,6 @@ if __name__ == "__main__":
 
     secret_word = choose_word(wordlist)
     with_help = True
-    print(secret_word)
     hangman(secret_word, with_help)
 
     # After you complete with_help functionality, change with_help to True
