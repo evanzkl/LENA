@@ -57,6 +57,12 @@ def parse_args() -> argparse.Namespace:
             "C:\\Program Files\\Tesseract-OCR\\tesseract.exe"
         ),
     )
+    parser.add_argument(
+        "--psm",
+        type=int,
+        default=3,
+        help="Tesseract Page Segmentation Mode (default: 3)",
+    )
     return parser.parse_args()
 
 
@@ -152,9 +158,9 @@ def evaluate_pair(gt_text: str, pred_text: str) -> dict[str, float | int]:
     }
 
 
-def run_ocr(image_path: Path) -> str:
+def run_ocr(image_path: Path, psm: int = 1 ) -> str:
     with Image.open(image_path) as img:
-        raw_text = pytesseract.image_to_string(img)
+        raw_text = pytesseract.image_to_string(img, config=f"--psm {psm}")
     return normalize_text(raw_text)
 
 
@@ -163,6 +169,8 @@ def main() -> None:
 
     if args.tesseract_cmd:
         pytesseract.pytesseract.tesseract_cmd = args.tesseract_cmd
+    else:
+        pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 
     selected_images = list_first_images(args.image_dir, args.limit)
     gt_map = load_ground_truth(args.gt_json)
@@ -180,7 +188,7 @@ def main() -> None:
     evaluated_count = 0
 
     for image_path in selected_images:
-        pred_text = run_ocr(image_path)
+        pred_text = run_ocr(image_path, args.psm)
         gt_text = gt_map.get(image_path.name)
 
         (texts_dir / f"{image_path.stem}.txt").write_text(pred_text + "\n", encoding="utf-8")
