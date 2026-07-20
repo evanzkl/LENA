@@ -17,6 +17,7 @@ DEFAULT_GT_JSON = Path(r"C:\Projects\OCR\icdar2013\test_gt.json")
 DEFAULT_OUTPUT_DIR = Path(__file__).resolve().parent / "output"
 SUPPORTED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff"}
 
+# python main.py --psm X
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
