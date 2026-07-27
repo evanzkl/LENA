@@ -1,19 +1,22 @@
 from __future__ import annotations
 
+from functools import lru_cache
 import math
 from pathlib import Path
 
 import cv2
 import numpy as np
+from PIL import Image, ImageDraw, ImageFont
 
 # Type alias for a 4-point polygon [[x1,y1],[x2,y1],[x2,y2],[x1,y2]]
 Polygon = list[list[float]]
 
-_FONT = cv2.FONT_HERSHEY_SIMPLEX
 _MAX_LINES = 4
 _LINE_SPACING = 1.3  # multiplier applied to line height for vertical gap
-_MIN_FONT_SCALE = 0.15
-_MAX_FONT_SCALE = 4.0
+_MIN_FONT_SIZE = 8
+_MAX_FONT_SIZE = 256
+_BLUR_INTENSITY_MULTIPLIER = 1.25
+_TEXT_FIT_MARGIN = 0.8
 
 
 # ---------------------------------------------------------------------------
@@ -42,48 +45,93 @@ def _wrap_into_n_lines(words: list[str], n: int) -> list[str]:
     ]
 
 
+def _bgr_to_rgb(color: tuple[int, int, int]) -> tuple[int, int, int]:
+    return (color[2], color[1], color[0])
+
+
+@lru_cache(maxsize=128)
+def _load_arial_font(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
+    """Load Arial when available, falling back to common sans-serif fonts."""
+    font_candidates = [
+        "arial.ttf",
+        "Arial.ttf",
+        "C:/Windows/Fonts/arial.ttf",
+        "DejaVuSans.ttf",
+    ]
+
+    for font_path in font_candidates:
+        try:
+            return ImageFont.truetype(font_path, size=size)
+        except OSError:
+            continue
+
+    return ImageFont.load_default()
+
+
+def _measure_text_block(
+    draw: ImageDraw.ImageDraw,
+    lines: list[str],
+    font: ImageFont.FreeTypeFont | ImageFont.ImageFont,
+    line_spacing_px: int,
+) -> tuple[int, int, list[tuple[int, int, int, int]]]:
+    """Return (max_w, total_h, line_boxes) for a text block."""
+    line_boxes: list[tuple[int, int, int, int]] = []
+
+    for line in lines:
+        line_boxes.append(draw.textbbox((0, 0), line, font=font))
+
+    line_widths = [max(1, right - left) for left, top, right, bottom in line_boxes]
+    line_heights = [max(1, bottom - top) for left, top, right, bottom in line_boxes]
+    max_w = max(line_widths) if line_widths else 0
+    total_h = sum(line_heights) + max(0, len(lines) - 1) * line_spacing_px
+    return max_w, total_h, line_boxes
+
+
 def _fit_text_to_box(
     text: str,
     box_w: int,
     box_h: int,
-    thickness: int = 1,
     max_lines: int = _MAX_LINES,
-) -> tuple[list[str], float]:
+) -> tuple[list[str], int]:
     """
     Find the line-wrapping and font scale that best fill (box_w, box_h)
     with *text*, trying an increasing number of lines and picking whichever
-    combination yields the largest font scale (i.e. best fill).
+    combination yields the largest font size (i.e. best fill).
     """
     words = text.split()
     if not words:
-        return [], 1.0
+        return [], _MIN_FONT_SIZE
 
-    avail_w = max(box_w, 1)
-    avail_h = max(box_h, 1)
+    avail_w = max(int(box_w * _TEXT_FIT_MARGIN), 1)
+    avail_h = max(int(box_h * _TEXT_FIT_MARGIN), 1)
+    draw = ImageDraw.Draw(Image.new("RGB", (1, 1)))
 
-    best_scale = 0.0
+    best_size = _MIN_FONT_SIZE
     best_lines = [text]
 
     for n in range(1, min(max_lines, len(words)) + 1):
         lines = _wrap_into_n_lines(words, n)
+        lo = _MIN_FONT_SIZE
+        hi = _MAX_FONT_SIZE
+        local_best = _MIN_FONT_SIZE
 
-        max_line_w = 0
-        max_line_h = 0
-        for line in lines:
-            (line_w, line_h), baseline = cv2.getTextSize(line, _FONT, 1.0, thickness)
-            max_line_w = max(max_line_w, line_w)
-            max_line_h = max(max_line_h, line_h + baseline)
+        while lo <= hi:
+            mid = (lo + hi) // 2
+            font = _load_arial_font(mid)
+            line_spacing_px = max(1, int(mid * (_LINE_SPACING - 1)))
+            max_w, total_h, _ = _measure_text_block(draw, lines, font, line_spacing_px)
 
-        total_h = max_line_h * len(lines) * _LINE_SPACING
-        scale_w = avail_w / max_line_w if max_line_w > 0 else _MAX_FONT_SCALE
-        scale_h = avail_h / total_h if total_h > 0 else _MAX_FONT_SCALE
-        font_scale = float(np.clip(min(scale_w, scale_h), _MIN_FONT_SCALE, _MAX_FONT_SCALE))
+            if max_w <= avail_w and total_h <= avail_h:
+                local_best = mid
+                lo = mid + 1
+            else:
+                hi = mid - 1
 
-        if font_scale > best_scale:
-            best_scale = font_scale
+        if local_best > best_size:
+            best_size = local_best
             best_lines = lines
 
-    return best_lines, best_scale
+    return best_lines, best_size
 
 
 # ---------------------------------------------------------------------------
@@ -93,7 +141,7 @@ def _fit_text_to_box(
 def blur_region(
     image: np.ndarray,
     polygon: Polygon,
-    blur_kernel: int = 35,
+    blur_kernel: int = 45,
 ) -> np.ndarray:
     """
     Gaussian-blur the rectangular region that encloses *polygon* in *image*.
@@ -110,10 +158,12 @@ def blur_region(
     if x2 <= x1 or y2 <= y1:
         return image  # degenerate box – skip
 
-    # Kernel size must be positive and odd
-    k = max(3, blur_kernel | 1)
+    # Kernel size must be positive and odd; apply a slight multiplier to obscure text better.
+    k = max(5, int(round((blur_kernel | 1) * _BLUR_INTENSITY_MULTIPLIER)) | 1)
     roi = image[y1:y2, x1:x2]
-    image[y1:y2, x1:x2] = cv2.GaussianBlur(roi, (k, k), 0)
+    gray_roi = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+    blurred_gray = cv2.GaussianBlur(gray_roi, (k, k), 0)
+    image[y1:y2, x1:x2] = cv2.cvtColor(blurred_gray, cv2.COLOR_GRAY2BGR)
     return image
 
 
@@ -123,7 +173,7 @@ def overlay_text(
     text: str,
     text_color: tuple[int, int, int] = (0, 0, 0),
     bg_color: tuple[int, int, int] | None = (255, 255, 200),
-    padding: int = 2,
+    padding: int = 8,
 ) -> np.ndarray:
     """
     Render *text* inside the bounding box of *polygon*, wrapping onto
@@ -148,44 +198,43 @@ def overlay_text(
     avail_w = max(box_w - 2 * padding, 1)
     avail_h = max(box_h - 2 * padding, 1)
 
-    base_thickness = 1
-    lines, font_scale = _fit_text_to_box(text, avail_w, avail_h, base_thickness)
+    lines, font_size = _fit_text_to_box(text, avail_w, avail_h)
     if not lines:
         return image
 
-    # Scale stroke thickness with font size for readability
-    font_thickness = max(1, round(font_scale * 1.6))
+    font = _load_arial_font(font_size)
+    text_rgb = _bgr_to_rgb(text_color)
 
-    # Recompute exact line sizes at the chosen font scale
-    line_sizes = [cv2.getTextSize(line, _FONT, font_scale, font_thickness) for line in lines]
-    line_heights = [line_h + baseline for (_, line_h), baseline in line_sizes]
-    gaps = [int(lh * (_LINE_SPACING - 1)) for lh in line_heights]
-    total_text_h = sum(line_heights) + sum(gaps[:-1])
+    # Draw with Pillow so we can use Arial.
+    pil_image = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+    draw = ImageDraw.Draw(pil_image)
+    line_spacing_px = max(1, int(font_size * (_LINE_SPACING - 1)))
+    _, total_text_h, line_boxes = _measure_text_block(draw, lines, font, line_spacing_px)
 
-    # Draw optional background rectangle
     if bg_color is not None:
-        overlay = image.copy()
-        cv2.rectangle(overlay, (x1, y1), (x2, y2), bg_color, thickness=-1)
-        cv2.addWeighted(overlay, 0.6, image, 0.4, 0, image)
+        bg_rgb = _bgr_to_rgb(bg_color)
+        overlay = Image.new("RGBA", pil_image.size, (0, 0, 0, 0))
+        overlay_draw = ImageDraw.Draw(overlay)
+        overlay_draw.rectangle((x1, y1, x2, y2), fill=(bg_rgb[0], bg_rgb[1], bg_rgb[2], 153))
+        pil_image = Image.alpha_composite(pil_image.convert("RGBA"), overlay).convert("RGB")
+        draw = ImageDraw.Draw(pil_image)
 
-    # Vertically centre the whole text block inside the box
-    cursor_y = y1 + (box_h - total_text_h) // 2
+    # Vertically center the whole text block inside the box.
+    content_x1 = x1 + padding
+    content_y1 = y1 + padding
+    content_w = max(box_w - 2 * padding, 1)
+    content_h = max(box_h - 2 * padding, 1)
+    cursor_y = content_y1 + max((content_h - total_text_h) // 2, 0)
 
-    for line, ((line_w, line_h), baseline) in zip(lines, line_sizes):
-        line_full_h = line_h + baseline
-        text_x = x1 + (box_w - line_w) // 2  # centre each line horizontally
-        text_y = cursor_y + line_h
-        cv2.putText(
-            image,
-            line,
-            (text_x, text_y),
-            _FONT,
-            font_scale,
-            text_color,
-            font_thickness,
-            cv2.LINE_AA,
-        )
-        cursor_y += int(line_full_h * _LINE_SPACING)
+    for line, (left, top, right, bottom) in zip(lines, line_boxes):
+        line_w = max(1, right - left)
+        line_h = max(1, bottom - top)
+        text_x = content_x1 + max((content_w - line_w) // 2, 0) - left
+        text_y = cursor_y - top
+        draw.text((text_x, text_y), line, font=font, fill=text_rgb)
+        cursor_y += line_h + line_spacing_px
+
+    image[:, :] = cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2BGR)
 
     return image
 
@@ -195,7 +244,7 @@ def process_image(
     polygons: list[Polygon],
     translated_texts: list[str],
     output_path: Path,
-    blur_kernel: int = 35,
+    blur_kernel: int = 45,
 ) -> np.ndarray:
     """
     Full pipeline for a single image:
