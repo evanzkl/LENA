@@ -1,119 +1,169 @@
 from __future__ import annotations
 
-# ---------------------------------------------------------------------------
-# Stub Spanish translator.
-# Replace the ENGLISH_TO_SPANISH dictionary or swap out translate_text() with
-# a real translation API (e.g. Google Translate, DeepL) when ready.
-# ---------------------------------------------------------------------------
+from functools import lru_cache
+import json
+import os
+from pathlib import Path
+import shutil
+import subprocess
+from typing import Any
+from urllib import error as urllib_error
+from urllib import request as urllib_request
 
-ENGLISH_TO_SPANISH: dict[str, str] = {
-    "a": "un",
-    "an": "un",
-    "the": "el",
-    "and": "y",
-    "or": "o",
-    "is": "es",
-    "are": "son",
-    "was": "fue",
-    "be": "ser",
-    "in": "en",
-    "on": "en",
-    "at": "en",
-    "to": "a",
-    "of": "de",
-    "for": "para",
-    "with": "con",
-    "by": "por",
-    "from": "de",
-    "this": "este",
-    "that": "ese",
-    "it": "ello",
-    "not": "no",
-    "no": "no",
-    "yes": "sí",
-    "hello": "hola",
-    "world": "mundo",
-    "open": "abierto",
-    "closed": "cerrado",
-    "exit": "salida",
-    "entrance": "entrada",
-    "stop": "alto",
-    "go": "vamos",
-    "sale": "venta",
-    "price": "precio",
-    "new": "nuevo",
-    "free": "gratis",
-    "now": "ahora",
-    "buy": "comprar",
-    "store": "tienda",
-    "restaurant": "restaurante",
-    "hotel": "hotel",
-    "please": "por favor",
-    "thank": "gracias",
-    "you": "tú",
-    "street": "calle",
-    "road": "camino",
-    "city": "ciudad",
-    "building": "edificio",
-    "floor": "piso",
-    "door": "puerta",
-    "window": "ventana",
-    "room": "habitación",
-    "phone": "teléfono",
-    "email": "correo",
-    "address": "dirección",
-    "welcome": "bienvenido",
-    "caution": "precaución",
-    "warning": "advertencia",
-    "danger": "peligro",
-    "emergency": "emergencia",
-    "parking": "estacionamiento",
-    "menu": "menú",
-    "special": "especial",
-    "daily": "diario",
-    "today": "hoy",
-    "water": "agua",
-    "food": "comida",
-    "drink": "bebida",
-    "coffee": "café",
-    "tea": "té",
-    "hot": "caliente",
-    "cold": "frío",
-    "large": "grande",
-    "small": "pequeño",
-    "medium": "mediano",
-    "open": "abierto",
-    "hours": "horas",
-    "monday": "lunes",
-    "tuesday": "martes",
-    "wednesday": "miércoles",
-    "thursday": "jueves",
-    "friday": "viernes",
-    "saturday": "sábado",
-    "sunday": "domingo",
-}
+try:
+    from google.cloud import translate
+except ImportError:  # Some installations expose only translate_v3.
+    try:
+        from google.cloud import translate_v3 as translate
+    except ImportError:
+        translate = None
+
+try:
+    from google.auth.exceptions import DefaultCredentialsError
+except ImportError:  # Defensive fallback if auth extras are missing.
+    DefaultCredentialsError = Exception
+
+DEFAULT_PROJECT_ID = "handheld-ocr-translator-503820"
+DEFAULT_LOCATION = "global"
 
 
-def _translate_word(word: str) -> str:
-    """Translate a single word; preserves punctuation attached to the word."""
-    # Strip trailing/leading punctuation for lookup, reattach afterwards
-    stripped = word.strip(".,!?;:\"'()")
-    prefix = word[: len(word) - len(word.lstrip("\"'("))]
-    suffix = word[len(word.rstrip(".,!?;:\"')"))]  if word != word.rstrip(".,!?;:\"')") else ""
-    translated = ENGLISH_TO_SPANISH.get(stripped.lower(), stripped)
-    # Preserve original capitalisation style
-    if stripped.isupper():
-        translated = translated.upper()
-    elif stripped.istitle():
-        translated = translated.capitalize()
-    return prefix + translated + suffix
+@lru_cache(maxsize=1)
+def _translation_client() -> Any:
+    """Create and cache a Translation API client that uses ADC credentials."""
+    if translate is None:
+        raise ImportError("google-cloud-translate is not installed")
+    return translate.TranslationServiceClient()
 
 
-def translate_text(text: str, target_lang: str = "es") -> str:
-    """
-    Stub translation: maps known English words to Spanish equivalents.
-    Unknown words are kept as-is.  Swap this function body for a real
-    translation API call when ready.
-    """
-    words = text.split()
-    return " ".join(_translate_word(w) for w in words)
+def _translate_with_gcloud_access_token(
+    contents: list[str],
+    target_lang: str,
+    project_id: str,
+    source_lang: str | None,
+) -> list[str]:
+    """Fallback path: call Translation REST API using a gcloud user token."""
+    gcloud_cmd = _find_gcloud_executable()
+    token_result = subprocess.run(
+        [gcloud_cmd, "auth", "print-access-token"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    access_token = token_result.stdout.strip()
+    if not access_token:
+        raise RuntimeError("gcloud returned an empty access token")
+
+    endpoint = (
+        f"https://translation.googleapis.com/v3/projects/{project_id}"
+        f"/locations/{DEFAULT_LOCATION}:translateText"
+    )
+    payload: dict[str, Any] = {
+        "contents": contents,
+        "mimeType": "text/plain",
+        "targetLanguageCode": target_lang,
+    }
+    if source_lang:
+        payload["sourceLanguageCode"] = source_lang
+
+    req = urllib_request.Request(
+        endpoint,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json; charset=utf-8",
+            "x-goog-user-project": project_id,
+        },
+        method="POST",
+    )
+    try:
+        with urllib_request.urlopen(req, timeout=30) as response:
+            body = json.loads(response.read().decode("utf-8"))
+    except urllib_error.HTTPError as exc:
+        details = ""
+        try:
+            details = exc.read().decode("utf-8", errors="ignore")
+        except Exception:
+            details = str(exc)
+        raise RuntimeError(f"Translation API HTTP {exc.code}: {details}") from exc
+
+    translations = body.get("translations", [])
+    return [item.get("translatedText", "") for item in translations]
+
+
+def _find_gcloud_executable() -> str:
+    """Resolve gcloud executable path, including common Windows install paths."""
+    candidates = [
+        shutil.which("gcloud"),
+        shutil.which("gcloud.cmd"),
+        str(Path(os.environ.get("LOCALAPPDATA", "")) / "Google" / "Cloud SDK" / "google-cloud-sdk" / "bin" / "gcloud.cmd"),
+        str(Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "Google" / "Cloud SDK" / "google-cloud-sdk" / "bin" / "gcloud.cmd"),
+    ]
+
+    for candidate in candidates:
+        if candidate and Path(candidate).exists():
+            return candidate
+
+    raise RuntimeError(
+        "Could not find gcloud executable. Add gcloud to PATH or install Google Cloud SDK."
+    )
+
+
+def translate_texts(
+    texts: list[str],
+    target_lang: str = "es",
+    project_id: str = DEFAULT_PROJECT_ID,
+    source_lang: str | None = None,
+) -> list[str]:
+    """Translate a list of strings with Google Cloud Translation API v3."""
+    if not texts:
+        return []
+
+    non_empty_indices = [i for i, text in enumerate(texts) if text and text.strip()]
+    if not non_empty_indices:
+        return texts.copy()
+
+    try:
+        client = _translation_client()
+        parent = f"projects/{project_id}/locations/{DEFAULT_LOCATION}"
+        req: dict[str, object] = {
+            "parent": parent,
+            "contents": [texts[i] for i in non_empty_indices],
+            "mime_type": "text/plain",
+            "target_language_code": target_lang,
+        }
+        if source_lang:
+            req["source_language_code"] = source_lang
+        response = client.translate_text(request=req)
+        translated_values = [result.translated_text for result in response.translations]
+    except DefaultCredentialsError:
+        translated_values = _translate_with_gcloud_access_token(
+            contents=[texts[i] for i in non_empty_indices],
+            target_lang=target_lang,
+            project_id=project_id,
+            source_lang=source_lang,
+        )
+    except Exception as exc:
+        raise RuntimeError(
+            "Google Cloud Translation request failed. "
+            "Ensure the Translation API is enabled and your gcloud auth is valid."
+        ) from exc
+
+    translated = texts.copy()
+    for index, translated_text in zip(non_empty_indices, translated_values):
+        translated[index] = translated_text
+    return translated
+
+
+def translate_text(
+    text: str,
+    target_lang: str = "es",
+    project_id: str = DEFAULT_PROJECT_ID,
+    source_lang: str | None = None,
+) -> str:
+    """Translate one string to a target language using Google Cloud Translation."""
+    return translate_texts(
+        [text],
+        target_lang=target_lang,
+        project_id=project_id,
+        source_lang=source_lang,
+    )[0]

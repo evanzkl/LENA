@@ -3,3 +3,4 @@ Pillow>=10.0.0
 easyocr>=1.7.1
 paddleocr>=2.7.3
 numpy>=1.24.0
+google-cloud-translate>=3.16.0

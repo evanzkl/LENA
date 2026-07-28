@@ -7,7 +7,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from OCR.paddle_ocr import build_paddle_engine, run_paddle_ocr
-from translation.translator import translate_text
+from translation.translator import DEFAULT_PROJECT_ID, translate_texts
 from blur_and_overlay.processor import process_image
 
 TEST_IMAGE = Path(r"C:\Projects\OCR\icdar2013\Challenge2_Test_Task12_Images\img_1.jpg")
@@ -26,8 +26,8 @@ def main() -> None:
     for r in regions:
         print(f"  [{r.confidence:.2f}] {r.text!r}")
 
-    print("\n[3/3] Translating to Spanish (stub)...")
-    translated_texts = [translate_text(r.text) for r in regions]
+    print(f"\n[3/3] Translating to Spanish (Google Cloud, project={DEFAULT_PROJECT_ID})...")
+    translated_texts = translate_texts([r.text for r in regions], target_lang="es")
     for original, spanish in zip(regions, translated_texts):
         print(f"  {original.text!r}  ->  {spanish!r}")
 
