@@ -239,6 +239,23 @@ def overlay_text(
     return image
 
 
+def process_image_array(
+    image: np.ndarray,
+    polygons: list[Polygon],
+    translated_texts: list[str],
+    blur_kernel: int = 45,
+) -> np.ndarray:
+    """
+    Blur each detected text region and overlay the corresponding translated
+    text directly on an in-memory BGR image (e.g. a captured camera frame).
+    The image is modified in-place and returned.
+    """
+    for polygon, translated in zip(polygons, translated_texts):
+        blur_region(image, polygon, blur_kernel=blur_kernel)
+        overlay_text(image, polygon, translated)
+    return image
+
+
 def process_image(
     image_path: Path,
     polygons: list[Polygon],
@@ -258,9 +275,7 @@ def process_image(
     if image is None:
         raise FileNotFoundError(f"Cannot load image: {image_path}")
 
-    for polygon, translated in zip(polygons, translated_texts):
-        blur_region(image, polygon, blur_kernel=blur_kernel)
-        overlay_text(image, polygon, translated)
+    process_image_array(image, polygons, translated_texts, blur_kernel=blur_kernel)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     cv2.imwrite(str(output_path), image)

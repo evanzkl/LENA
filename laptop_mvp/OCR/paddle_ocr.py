@@ -18,24 +18,23 @@ class TextRegion(NamedTuple):
     confidence: float
 
 
-def build_paddle_engine() -> Any:
-    """Initialise and return a PaddleOCR engine for English text."""
+def build_paddle_engine(lang: str = "en") -> Any:
+    """Initialise and return a PaddleOCR engine for the given source language."""
     if PaddleOCR is None:
         raise ImportError("paddleocr is not installed. Run: pip install paddleocr")
     return PaddleOCR(
         use_doc_orientation_classify=False,
         use_doc_unwarping=False,
         use_textline_orientation=False,
-        lang="en",
+        lang=lang,
         device="cpu",
         enable_hpi=False,
         enable_mkldnn=False,
     )
 
 
-def run_paddle_ocr(engine: Any, image_path: Path) -> list[TextRegion]:
-    """Run PaddleOCR on an image and return detected text regions with bounding polygons."""
-    result = engine.predict(str(image_path))
+def _regions_from_predict_result(result: Any) -> list[TextRegion]:
+    """Parse the raw PaddleOCR `predict()` output into `TextRegion` objects."""
     regions: list[TextRegion] = []
 
     if not isinstance(result, list):
@@ -64,3 +63,15 @@ def run_paddle_ocr(engine: Any, image_path: Path) -> list[TextRegion]:
             ))
 
     return regions
+
+
+def run_paddle_ocr(engine: Any, image_path: Path) -> list[TextRegion]:
+    """Run PaddleOCR on an image file and return detected text regions."""
+    result = engine.predict(str(image_path))
+    return _regions_from_predict_result(result)
+
+
+def run_paddle_ocr_array(engine: Any, image: np.ndarray) -> list[TextRegion]:
+    """Run PaddleOCR on an in-memory BGR image (e.g. a captured camera frame)."""
+    result = engine.predict(image)
+    return _regions_from_predict_result(result)
