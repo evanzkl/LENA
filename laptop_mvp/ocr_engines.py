@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +18,11 @@ except ImportError:
     easyocr = None
 
 try:
+    import paddle
+except ImportError:
+    paddle = None  # type: ignore[assignment,misc]
+
+try:
     from paddleocr import PaddleOCR
 except ImportError:
     PaddleOCR = None
@@ -24,6 +30,29 @@ except ImportError:
 
 EasyOCRReader = Any
 PaddleEngine = Any
+
+
+def _resolve_paddle_device() -> str:
+    requested_device = (os.environ.get("OCR_PADDLE_DEVICE") or os.environ.get("PADDLE_DEVICE") or "gpu").strip().lower()
+    if requested_device in {"auto", ""}:
+        requested_device = "gpu" if paddle is not None and paddle.device.is_compiled_with_cuda() else "cpu"
+
+    if requested_device == "gpu":
+        if paddle is None:
+            raise RuntimeError(
+                "GPU mode was requested, but Paddle is not installed. Install the Jetson CUDA build of paddlepaddle-gpu."
+            )
+        if not paddle.device.is_compiled_with_cuda():
+            raise RuntimeError(
+                "GPU mode was requested, but your installed Paddle build is CPU-only. Install the Jetson CUDA-enabled paddlepaddle-gpu wheel."
+            )
+
+    return requested_device
+
+
+def _resolve_ocr_version() -> str:
+    ocr_version = (os.environ.get("OCR_PADDLE_OCR_VERSION") or "PP-OCRv5").strip()
+    return ocr_version or "PP-OCRv5"
 
 
 def configure_tesseract(tesseract_cmd: str | None) -> None:
@@ -67,12 +96,15 @@ def run_easyocr(reader: EasyOCRReader, image_path: Path) -> str:
 def build_paddleocr_engine() -> PaddleEngine:
     if PaddleOCR is None:
         raise ImportError("paddleocr is not installed. Run: pip install paddleocr")
+    device = _resolve_paddle_device()
+    ocr_version = _resolve_ocr_version()
     return PaddleOCR(
         use_doc_orientation_classify=False,
         use_doc_unwarping=False,
         use_textline_orientation=False,
         lang="en",
-        device="cpu",
+        ocr_version=ocr_version,
+        device=device,
         enable_hpi=False,
         enable_mkldnn=False,
     )
