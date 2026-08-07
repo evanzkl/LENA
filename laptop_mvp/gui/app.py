@@ -49,10 +49,21 @@ class TranslatorApp(tk.Tk):
 
     def _configure_styles(self) -> None:
         style = ttk.Style(self)
-        try:
-            style.theme_use("clam")
-        except tk.TclError:
-            pass
+        for theme_name in ("vista", "xpnative", "clam"):
+            try:
+                style.theme_use(theme_name)
+                break
+            except tk.TclError:
+                continue
+        style.configure(
+            "Pill.TButton",
+            font=("Segoe UI", 11, "bold"),
+            padding=(12, 7),
+        )
+        style.map(
+            "Pill.TButton",
+            foreground=[("disabled", "#888888")],
+        )
         style.configure(
             "HUD.TCombobox",
             fieldbackground="#F9F9F9",

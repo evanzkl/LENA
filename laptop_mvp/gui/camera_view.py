@@ -26,6 +26,7 @@ class CameraView(ttk.Frame):
         self.video_label = ttk.Label(self, background="black")
         self.video_label.pack(side="top", fill="both", expand=True)
         self.video_label.bind("<Configure>", lambda _event: self._redraw())
+        self.bind("<Configure>", lambda _event: self._layout_controls())
 
         self.hide_show_btn = tk.Button(
             self,
@@ -43,85 +44,57 @@ class CameraView(ttk.Frame):
         )
         self.hide_show_btn.place(x=18, y=18, anchor="nw")
 
-        self.control_bar = tk.Frame(self, bg="#F9F9F9", bd=0, highlightthickness=0)
-        self.control_bar.place(relx=0.5, y=22, anchor="n")
-        for col in range(5):
-            self.control_bar.grid_columnconfigure(col, weight=1, uniform="camera_toolbar")
-
         self.source_combo = ttk.Combobox(
-            self.control_bar,
+            self,
             textvariable=app.source_lang_var,
             values=LANGUAGE_NAMES,
             state="readonly",
             style="HUD.TCombobox",
         )
-        self.source_combo.grid(row=0, column=0, sticky="nsew", padx=6, pady=6)
 
-        self.swap_btn = tk.Button(
-            self.control_bar,
+        self.swap_btn = ttk.Button(
+            self,
             text="<-> Swap",
             command=app.swap_languages,
-            font=("Segoe UI", 11, "bold"),
-            fg="#222222",
-            bg="#F9F9F9",
-            activeforeground="#111111",
-            activebackground="#E7E7E7",
-            relief="flat",
-            bd=0,
-            padx=10,
-            pady=5,
+            style="Pill.TButton",
         )
-        self.swap_btn.grid(row=0, column=1, sticky="nsew", padx=6, pady=6)
 
         self.target_combo = ttk.Combobox(
-            self.control_bar,
+            self,
             textvariable=app.target_lang_var,
             values=LANGUAGE_NAMES,
             state="readonly",
             style="HUD.TCombobox",
         )
-        self.target_combo.grid(row=0, column=2, sticky="nsew", padx=6, pady=6)
 
-        self.upload_btn = tk.Button(
-            self.control_bar,
+        self.upload_btn = ttk.Button(
+            self,
             text="Upload Image",
             command=self._on_upload_image,
-            font=("Segoe UI", 11, "bold"),
-            fg="#222222",
-            bg="#F9F9F9",
-            activeforeground="#111111",
-            activebackground="#E7E7E7",
-            relief="flat",
-            bd=0,
-            padx=12,
-            pady=5,
+            style="Pill.TButton",
         )
-        self.upload_btn.grid(row=0, column=3, sticky="nsew", padx=6, pady=6)
 
-        self.capture_btn = tk.Button(
-            self.control_bar,
+        self.capture_btn = ttk.Button(
+            self,
             text="Capture",
             command=app.capture_and_process,
-            font=("Segoe UI", 11, "bold"),
-            fg="#222222",
-            bg="#F9F9F9",
-            activeforeground="#111111",
-            activebackground="#E7E7E7",
-            relief="flat",
-            bd=0,
-            padx=14,
-            pady=5,
+            style="Pill.TButton",
         )
-        self.capture_btn.grid(row=0, column=4, sticky="nsew", padx=6, pady=6)
 
-        # Everything in the top HUD except the eye toggle itself.
-        self._toggleable_widgets = [self.control_bar]
+        # Everything in the top row except the eye toggle itself.
+        self._toggleable_widgets = [
+            self.source_combo,
+            self.swap_btn,
+            self.target_combo,
+            self.upload_btn,
+            self.capture_btn,
+        ]
+        self._layout_controls()
 
     def _toggle_ui(self) -> None:
         self._ui_visible = not self._ui_visible
         if self._ui_visible:
-            for widget in self._toggleable_widgets:
-                widget.place(relx=0.5, y=22, anchor="n")
+            self._layout_controls()
             self.hide_show_btn.config(text=ICON_EYE_OFF)
         else:
             for widget in self._toggleable_widgets:
@@ -129,9 +102,29 @@ class CameraView(ttk.Frame):
             self.hide_show_btn.config(text=ICON_EYE)
 
     def set_controls_enabled(self, enabled: bool) -> None:
-        state = "normal" if enabled else "disabled"
-        self.capture_btn.config(state=state)
-        self.upload_btn.config(state=state)
+        state = "!disabled" if enabled else "disabled"
+        self.capture_btn.state([state])
+        self.upload_btn.state([state])
+
+    def _layout_controls(self) -> None:
+        if not self._ui_visible:
+            return
+        control_specs = [
+            (self.source_combo, 150),
+            (self.swap_btn, 104),
+            (self.target_combo, 150),
+            (self.upload_btn, 138),
+            (self.capture_btn, 104),
+        ]
+        gap = 12
+        top_y = 22
+        height = 40
+        total_w = sum(width for _, width in control_specs) + gap * (len(control_specs) - 1)
+        start_x = max((self.winfo_width() - total_w) // 2, 92)
+        cursor_x = start_x
+        for widget, width in control_specs:
+            widget.place(x=cursor_x, y=top_y, width=width, height=height)
+            cursor_x += width + gap
 
     def _on_upload_image(self) -> None:
         path = filedialog.askopenfilename(

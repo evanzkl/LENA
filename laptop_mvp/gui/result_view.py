@@ -32,6 +32,7 @@ class ResultView(ttk.Frame):
         self.image_label = ttk.Label(self, background="black")
         self.image_label.pack(side="top", fill="both", expand=True)
         self.image_label.bind("<Configure>", lambda _event: self._redraw())
+        self.bind("<Configure>", lambda _event: self._layout_controls())
 
         self.hide_show_btn = tk.Button(
             self,
@@ -49,53 +50,57 @@ class ResultView(ttk.Frame):
         )
         self.hide_show_btn.place(x=18, y=18, anchor="nw")
 
-        self.control_bar = tk.Frame(self, bg="#F9F9F9", bd=0, highlightthickness=0)
-        self.control_bar.place(relx=0.5, y=22, anchor="n")
-        for col in range(2):
-            self.control_bar.grid_columnconfigure(col, weight=1, uniform="result_toolbar")
-
-        self.retake_btn = tk.Button(
-            self.control_bar,
+        self.retake_btn = ttk.Button(
+            self,
             text="Retake",
             command=app.retake,
-            font=("Segoe UI", 11, "bold"),
-            fg="#222222",
-            bg="#F9F9F9",
-            activeforeground="#111111",
-            activebackground="#E7E7E7",
-            relief="flat",
-            bd=0,
-            padx=16,
-            pady=5,
+            style="Pill.TButton",
         )
-        self.retake_btn.grid(row=0, column=0, sticky="nsew", padx=6, pady=6)
 
         self.accuracy_label = tk.Label(
-            self.control_bar,
+            self,
             text="",
             anchor="center",
             justify="center",
             font=("Segoe UI", 11, "bold"),
             fg="#1C7D45",
             bg="#F9F9F9",
+            relief="solid",
+            bd=1,
             padx=14,
             pady=8,
         )
-        self.accuracy_label.grid(row=0, column=1, sticky="nsew", padx=6, pady=6)
 
-        # Everything in the top HUD except the UI toggle itself.
-        self._toggleable_widgets = [self.control_bar]
+        # Everything in the top row except the eye toggle itself.
+        self._toggleable_widgets = [self.retake_btn, self.accuracy_label]
+        self._layout_controls()
 
     def _toggle_ui(self) -> None:
         self._ui_visible = not self._ui_visible
         if self._ui_visible:
-            for widget in self._toggleable_widgets:
-                widget.place(relx=0.5, y=22, anchor="n")
+            self._layout_controls()
             self.hide_show_btn.config(text=ICON_EYE_OFF)
         else:
             for widget in self._toggleable_widgets:
                 widget.place_forget()
             self.hide_show_btn.config(text=ICON_EYE)
+
+    def _layout_controls(self) -> None:
+        if not self._ui_visible:
+            return
+        control_specs = [
+            (self.retake_btn, 112),
+            (self.accuracy_label, 310),
+        ]
+        gap = 12
+        top_y = 22
+        height = 40
+        total_w = sum(width for _, width in control_specs) + gap * (len(control_specs) - 1)
+        start_x = max((self.winfo_width() - total_w) // 2, 92)
+        cursor_x = start_x
+        for widget, width in control_specs:
+            widget.place(x=cursor_x, y=top_y, width=width, height=height)
+            cursor_x += width + gap
 
     def display_result(self, image_bgr: np.ndarray, accuracy: float) -> None:
         self._result_image = image_bgr
