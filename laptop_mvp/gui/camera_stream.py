@@ -2,9 +2,49 @@ from __future__ import annotations
 
 import sys
 import threading
+import time
 
 import cv2
 import numpy as np
+
+
+def _camera_backend() -> int:
+    # CAP_DSHOW opens faster and more reliably on Windows.
+    return cv2.CAP_DSHOW if sys.platform == "win32" else cv2.CAP_ANY
+
+
+def find_camera_index(candidates: list[int] | None = None, timeout_per_candidate: float = 2.0) -> int | None:
+    """
+    Return the first camera index in *candidates* that actually produces a
+    real (non-black) picture. Devices can shift indices between reboots/plug
+    events (e.g. an external webcam bumping the integrated one), and some
+    indices open successfully but only ever return black frames (IR cameras
+    used for Windows Hello), so opening isn't enough - a live frame must be checked.
+    """
+    if candidates is None:
+        candidates = [0, 1, 2, 3]
+
+    backend = _camera_backend()
+    for idx in candidates:
+        cap = cv2.VideoCapture(idx, backend)
+        if not cap.isOpened():
+            cap.release()
+            continue
+
+        deadline = time.monotonic() + timeout_per_candidate
+        found = False
+        while time.monotonic() < deadline:
+            ok, frame = cap.read()
+            if ok and frame is not None and frame.mean() > 5.0:
+                found = True
+                break
+            time.sleep(0.1)
+        cap.release()
+
+        if found:
+            return idx
+
+    return None
 
 
 class CameraStream:
@@ -21,9 +61,7 @@ class CameraStream:
         self._thread: threading.Thread | None = None
 
     def start(self) -> None:
-        # CAP_DSHOW opens faster and more reliably on Windows.
-        backend = cv2.CAP_DSHOW if sys.platform == "win32" else cv2.CAP_ANY
-        self._cap = cv2.VideoCapture(self._index, backend)
+        self._cap = cv2.VideoCapture(self._index, _camera_backend())
         self._cap.set(cv2.CAP_PROP_FRAME_WIDTH, self._width)
         self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self._height)
 
@@ -57,3 +95,4 @@ class CameraStream:
         if self._cap is not None:
             self._cap.release()
             self._cap = None
+

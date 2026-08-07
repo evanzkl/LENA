@@ -4,101 +4,134 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, ttk
 
-from .image_utils import frame_to_photo
+from .image_utils import darken_frame, frame_to_photo
 from .languages import LANGUAGE_NAMES
+
+ICON_EYE = "👁"
+ICON_EYE_OFF = "👁̸"
 
 
 class CameraView(ttk.Frame):
-    """Initial state: live camera preview with language pickers and a capture button."""
+    """Initial state: live camera preview with language pickers and capture/upload controls."""
 
     def __init__(self, parent: tk.Widget, app) -> None:
         super().__init__(parent)
         self.app = app
         self._ui_visible = True
         self._current_photo = None
-
-        self.toolbar = ttk.Frame(self)
-        self.toolbar.pack(side="top", fill="x")
-        for col in range(6):
-            self.toolbar.columnconfigure(col, weight=1, uniform="camera_toolbar")
-
-        self.hide_show_btn = ttk.Button(self.toolbar, text="Hide UI", command=self._toggle_ui)
-        self.hide_show_btn.grid(row=0, column=0, sticky="nsew", padx=4, pady=6)
-
-        self.source_combo = ttk.Combobox(
-            self.toolbar,
-            textvariable=app.source_lang_var,
-            values=LANGUAGE_NAMES,
-            state="readonly",
-        )
-        self.source_combo.grid(row=0, column=1, sticky="nsew", padx=4, pady=6)
-
-        self.swap_btn = ttk.Button(self.toolbar, text="\u21c4 Swap", command=app.swap_languages)
-        self.swap_btn.grid(row=0, column=2, sticky="nsew", padx=4, pady=6)
-
-        self.target_combo = ttk.Combobox(
-            self.toolbar,
-            textvariable=app.target_lang_var,
-            values=LANGUAGE_NAMES,
-            state="readonly",
-        )
-        self.target_combo.grid(row=0, column=3, sticky="nsew", padx=4, pady=6)
-
-        self.image_mode_btn = ttk.Button(self.toolbar, text="Image Mode", command=self._show_image_mode_menu)
-        self.image_mode_btn.grid(row=0, column=4, sticky="nsew", padx=4, pady=6)
-
-        self.image_mode_menu = tk.Menu(self, tearoff=0)
-        self.image_mode_menu.add_command(label="Upload Image...", command=self._on_upload_image)
-        self.image_mode_menu.add_command(label="Capture Image", command=app.capture_and_process)
-
-        self.capture_btn = ttk.Button(self.toolbar, text="Capture", command=app.capture_and_process)
-        self.capture_btn.grid(row=0, column=5, sticky="nsew", padx=4, pady=6)
-
-        # Everything in the toolbar except the hide/show toggle itself.
-        self._toggleable_widgets = [
-            self.source_combo,
-            self.swap_btn,
-            self.target_combo,
-            self.image_mode_btn,
-            self.capture_btn,
-        ]
-
-        self.status_label = ttk.Label(self, text="", anchor="center")
-        self.status_label.pack(side="top", fill="x")
-        self._toggleable_widgets.append(self.status_label)
+        self._last_frame = None
+        self._frozen = False
+        self._show_live = True
 
         self.video_label = ttk.Label(self, background="black")
         self.video_label.pack(side="top", fill="both", expand=True)
+        self.video_label.bind("<Configure>", lambda _event: self._redraw())
+
+        self.hide_show_btn = tk.Button(
+            self,
+            text=ICON_EYE_OFF,
+            command=self._toggle_ui,
+            font=("Segoe UI Emoji", 16),
+            fg="#E8EEF8",
+            bg="#1F3651",
+            activeforeground="#FFFFFF",
+            activebackground="#28486A",
+            relief="flat",
+            bd=0,
+            width=3,
+            pady=6,
+        )
+        self.hide_show_btn.place(x=18, y=18, anchor="nw")
+
+        self.control_bar = tk.Frame(self, bg="#F9F9F9", bd=0, highlightthickness=0)
+        self.control_bar.place(relx=0.5, y=22, anchor="n")
+        for col in range(5):
+            self.control_bar.grid_columnconfigure(col, weight=1, uniform="camera_toolbar")
+
+        self.source_combo = ttk.Combobox(
+            self.control_bar,
+            textvariable=app.source_lang_var,
+            values=LANGUAGE_NAMES,
+            state="readonly",
+            style="HUD.TCombobox",
+        )
+        self.source_combo.grid(row=0, column=0, sticky="nsew", padx=6, pady=6)
+
+        self.swap_btn = tk.Button(
+            self.control_bar,
+            text="<-> Swap",
+            command=app.swap_languages,
+            font=("Segoe UI", 11, "bold"),
+            fg="#222222",
+            bg="#F9F9F9",
+            activeforeground="#111111",
+            activebackground="#E7E7E7",
+            relief="flat",
+            bd=0,
+            padx=10,
+            pady=5,
+        )
+        self.swap_btn.grid(row=0, column=1, sticky="nsew", padx=6, pady=6)
+
+        self.target_combo = ttk.Combobox(
+            self.control_bar,
+            textvariable=app.target_lang_var,
+            values=LANGUAGE_NAMES,
+            state="readonly",
+            style="HUD.TCombobox",
+        )
+        self.target_combo.grid(row=0, column=2, sticky="nsew", padx=6, pady=6)
+
+        self.upload_btn = tk.Button(
+            self.control_bar,
+            text="Upload Image",
+            command=self._on_upload_image,
+            font=("Segoe UI", 11, "bold"),
+            fg="#222222",
+            bg="#F9F9F9",
+            activeforeground="#111111",
+            activebackground="#E7E7E7",
+            relief="flat",
+            bd=0,
+            padx=12,
+            pady=5,
+        )
+        self.upload_btn.grid(row=0, column=3, sticky="nsew", padx=6, pady=6)
+
+        self.capture_btn = tk.Button(
+            self.control_bar,
+            text="Capture",
+            command=app.capture_and_process,
+            font=("Segoe UI", 11, "bold"),
+            fg="#222222",
+            bg="#F9F9F9",
+            activeforeground="#111111",
+            activebackground="#E7E7E7",
+            relief="flat",
+            bd=0,
+            padx=14,
+            pady=5,
+        )
+        self.capture_btn.grid(row=0, column=4, sticky="nsew", padx=6, pady=6)
+
+        # Everything in the top HUD except the eye toggle itself.
+        self._toggleable_widgets = [self.control_bar]
 
     def _toggle_ui(self) -> None:
         self._ui_visible = not self._ui_visible
         if self._ui_visible:
             for widget in self._toggleable_widgets:
-                if widget is self.status_label:
-                    widget.pack(side="top", fill="x")
-                else:
-                    widget.grid()
-            self.hide_show_btn.config(text="Hide UI")
+                widget.place(relx=0.5, y=22, anchor="n")
+            self.hide_show_btn.config(text=ICON_EYE_OFF)
         else:
             for widget in self._toggleable_widgets:
-                if widget is self.status_label:
-                    widget.pack_forget()
-                else:
-                    widget.grid_remove()
-            self.hide_show_btn.config(text="Show UI")
+                widget.place_forget()
+            self.hide_show_btn.config(text=ICON_EYE)
 
     def set_controls_enabled(self, enabled: bool) -> None:
         state = "normal" if enabled else "disabled"
         self.capture_btn.config(state=state)
-        self.image_mode_btn.config(state=state)
-
-    def set_status(self, text: str) -> None:
-        self.status_label.config(text=text)
-
-    def _show_image_mode_menu(self) -> None:
-        x = self.image_mode_btn.winfo_rootx()
-        y = self.image_mode_btn.winfo_rooty() + self.image_mode_btn.winfo_height()
-        self.image_mode_menu.tk_popup(x, y)
+        self.upload_btn.config(state=state)
 
     def _on_upload_image(self) -> None:
         path = filedialog.askopenfilename(
@@ -113,10 +146,41 @@ class CameraView(ttk.Frame):
         self.app.process_uploaded_image(Path(path))
 
     def display_frame(self, frame_bgr) -> None:
+        """Called by the live camera preview loop; ignored while showing a static/frozen image."""
+        if not self._show_live:
+            return
+        self._last_frame = frame_bgr
+        self._redraw()
+
+    def show_static_image(self, image_bgr) -> None:
+        """Show *image_bgr* (e.g. an uploaded file) in place of the live feed, unfrozen."""
+        self._show_live = False
+        self._frozen = False
+        self._last_frame = image_bgr
+        self._redraw()
+
+    def freeze_and_show_processing(self) -> None:
+        """Freeze the feed on its current frame, darken it, and overlay a processing message."""
+        self._show_live = False
+        self._frozen = True
+        self._redraw()
+
+    def unfreeze(self) -> None:
+        self._frozen = False
+        self._show_live = True
+
+    def _redraw(self) -> None:
+        if self._last_frame is None:
+            return
         box_w = self.video_label.winfo_width()
         box_h = self.video_label.winfo_height()
-        photo = frame_to_photo(frame_bgr, box_w, box_h)
+        if self._frozen:
+            frame = darken_frame(self._last_frame)
+            photo = frame_to_photo(frame, box_w, box_h, overlay_text="Processing...")
+        else:
+            photo = frame_to_photo(self._last_frame, box_w, box_h)
         if photo is None:
             return
         self.video_label.configure(image=photo)
         self._current_photo = photo  # keep a reference so Tk doesn't garbage-collect it
+

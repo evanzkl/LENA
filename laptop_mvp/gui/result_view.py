@@ -7,6 +7,9 @@ import numpy as np
 
 from .image_utils import frame_to_photo
 
+ICON_EYE = "👁"
+ICON_EYE_OFF = "👁̸"
+
 
 def _confidence_label(accuracy: float) -> str:
     if accuracy >= 90:
@@ -26,42 +29,78 @@ class ResultView(ttk.Frame):
         self._current_photo = None
         self._result_image: np.ndarray | None = None
 
-        self.toolbar = ttk.Frame(self)
-        self.toolbar.pack(side="top", fill="x")
-        for col in range(3):
-            self.toolbar.columnconfigure(col, weight=1, uniform="result_toolbar")
-
-        self.hide_show_btn = ttk.Button(self.toolbar, text="Hide UI", command=self._toggle_ui)
-        self.hide_show_btn.grid(row=0, column=0, sticky="nsew", padx=4, pady=6)
-
-        self.retake_btn = ttk.Button(self.toolbar, text="Retake", command=app.retake)
-        self.retake_btn.grid(row=0, column=1, sticky="nsew", padx=4, pady=6)
-
-        self.accuracy_label = ttk.Label(self.toolbar, text="", anchor="center", justify="center")
-        self.accuracy_label.grid(row=0, column=2, sticky="nsew", padx=4, pady=6)
-
-        # Everything in the toolbar except the hide/show toggle itself.
-        self._toggleable_widgets = [self.retake_btn, self.accuracy_label]
-
         self.image_label = ttk.Label(self, background="black")
         self.image_label.pack(side="top", fill="both", expand=True)
         self.image_label.bind("<Configure>", lambda _event: self._redraw())
+
+        self.hide_show_btn = tk.Button(
+            self,
+            text=ICON_EYE_OFF,
+            command=self._toggle_ui,
+            font=("Segoe UI Emoji", 16),
+            fg="#E8EEF8",
+            bg="#1F3651",
+            activeforeground="#FFFFFF",
+            activebackground="#28486A",
+            relief="flat",
+            bd=0,
+            width=3,
+            pady=6,
+        )
+        self.hide_show_btn.place(x=18, y=18, anchor="nw")
+
+        self.control_bar = tk.Frame(self, bg="#F9F9F9", bd=0, highlightthickness=0)
+        self.control_bar.place(relx=0.5, y=22, anchor="n")
+        for col in range(2):
+            self.control_bar.grid_columnconfigure(col, weight=1, uniform="result_toolbar")
+
+        self.retake_btn = tk.Button(
+            self.control_bar,
+            text="Retake",
+            command=app.retake,
+            font=("Segoe UI", 11, "bold"),
+            fg="#222222",
+            bg="#F9F9F9",
+            activeforeground="#111111",
+            activebackground="#E7E7E7",
+            relief="flat",
+            bd=0,
+            padx=16,
+            pady=5,
+        )
+        self.retake_btn.grid(row=0, column=0, sticky="nsew", padx=6, pady=6)
+
+        self.accuracy_label = tk.Label(
+            self.control_bar,
+            text="",
+            anchor="center",
+            justify="center",
+            font=("Segoe UI", 11, "bold"),
+            fg="#1C7D45",
+            bg="#F9F9F9",
+            padx=14,
+            pady=8,
+        )
+        self.accuracy_label.grid(row=0, column=1, sticky="nsew", padx=6, pady=6)
+
+        # Everything in the top HUD except the UI toggle itself.
+        self._toggleable_widgets = [self.control_bar]
 
     def _toggle_ui(self) -> None:
         self._ui_visible = not self._ui_visible
         if self._ui_visible:
             for widget in self._toggleable_widgets:
-                widget.grid()
-            self.hide_show_btn.config(text="Hide UI")
+                widget.place(relx=0.5, y=22, anchor="n")
+            self.hide_show_btn.config(text=ICON_EYE_OFF)
         else:
             for widget in self._toggleable_widgets:
-                widget.grid_remove()
-            self.hide_show_btn.config(text="Show UI")
+                widget.place_forget()
+            self.hide_show_btn.config(text=ICON_EYE)
 
     def display_result(self, image_bgr: np.ndarray, accuracy: float) -> None:
         self._result_image = image_bgr
         self.accuracy_label.config(
-            text=f"Estimated Accuracy: {accuracy:.1f}% ({_confidence_label(accuracy)})"
+            text=f"Accuracy: {accuracy:.1f}% ({_confidence_label(accuracy)})"
         )
         self._redraw()
 
