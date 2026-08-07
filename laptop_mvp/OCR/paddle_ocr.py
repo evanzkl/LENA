@@ -5,6 +5,8 @@ from typing import Any, NamedTuple
 import os
 
 import numpy as np
+import pytesseract
+from PIL import Image
 
 try:
     import paddle
@@ -13,7 +15,7 @@ except ImportError:
 
 try:
     from paddleocr import PaddleOCR
-except ImportError:
+except Exception:
     PaddleOCR = None  # type: ignore[assignment,misc]
 
 
@@ -22,6 +24,54 @@ class TextRegion(NamedTuple):
     polygon: list[list[float]]  # 4-point quadrilateral [[x1,y1], [x2,y2], ...]
     text: str
     confidence: float
+
+
+class _TesseractFallbackEngine:
+    """Minimal OCR engine with a PaddleOCR-like predict() output for desktop fallback."""
+
+    def predict(self, image: str | np.ndarray) -> list[dict[str, Any]]:
+        if isinstance(image, str):
+            pil_image = Image.open(image)
+            image_bgr = np.array(pil_image.convert("RGB"))[:, :, ::-1]
+        else:
+            image_bgr = image
+
+        image_rgb = image_bgr[:, :, ::-1]
+        pil_image = Image.fromarray(image_rgb)
+        data = pytesseract.image_to_data(pil_image, output_type=pytesseract.Output.DICT)
+
+        polys: list[list[list[float]]] = []
+        texts: list[str] = []
+        scores: list[float] = []
+
+        for i, text in enumerate(data.get("text", [])):
+            text = str(text).strip()
+            if not text:
+                continue
+            conf_raw = data.get("conf", ["-1"])[i]
+            try:
+                confidence = float(conf_raw)
+            except Exception:
+                confidence = -1.0
+            if confidence < 0:
+                continue
+
+            left = float(data["left"][i])
+            top = float(data["top"][i])
+            width = float(data["width"][i])
+            height = float(data["height"][i])
+            polys.append(
+                [
+                    [left, top],
+                    [left + width, top],
+                    [left + width, top + height],
+                    [left, top + height],
+                ]
+            )
+            texts.append(text)
+            scores.append(max(0.0, min(confidence / 100.0, 1.0)))
+
+        return [{"dt_polys": polys, "rec_texts": texts, "rec_scores": scores}]
 
 
 def _resolve_paddle_device() -> str:
@@ -50,7 +100,7 @@ def _resolve_ocr_version() -> str:
 def build_paddle_engine(lang: str = "en") -> Any:
     """Initialise and return a PaddleOCR engine for the given source language."""
     if PaddleOCR is None:
-        raise ImportError("paddleocr is not installed. Run: pip install paddleocr")
+        return _TesseractFallbackEngine()
     device = _resolve_paddle_device()
     ocr_version = _resolve_ocr_version()
     return PaddleOCR(

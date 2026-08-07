@@ -17,6 +17,36 @@ def _load_overlay_font(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFon
     return ImageFont.load_default()
 
 
+def create_eye_icon(
+    master,
+    size: int = 34,
+    hidden: bool = False,
+    fill: str = "#E8EEF8",
+    stroke: str = "#E8EEF8",
+    background: str = "#1F3651",
+) -> ImageTk.PhotoImage:
+    """Create a small font-independent eye icon for the UI toggle button."""
+    image = Image.new("RGBA", (size, size), background)
+    draw = ImageDraw.Draw(image)
+
+    left = size * 0.14
+    top = size * 0.30
+    right = size * 0.86
+    bottom = size * 0.70
+    center_x = size / 2
+    center_y = size / 2
+    pupil_r = max(1, int(size * 0.10))
+
+    draw.arc((left, top, right, bottom), start=0, end=360, fill=stroke, width=max(1, size // 12))
+    draw.ellipse((center_x - pupil_r, center_y - pupil_r, center_x + pupil_r, center_y + pupil_r), fill=fill)
+    draw.line((left - 1, center_y, right + 1, center_y), fill=stroke, width=max(1, size // 15))
+
+    if hidden:
+        draw.line((size * 0.22, size * 0.78, size * 0.78, size * 0.22), fill=stroke, width=max(2, size // 10))
+
+    return ImageTk.PhotoImage(image, master=master)
+
+
 def frame_to_photo(
     frame_bgr: np.ndarray,
     box_w: int,

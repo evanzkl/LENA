@@ -5,10 +5,7 @@ from tkinter import ttk
 
 import numpy as np
 
-from .image_utils import frame_to_photo
-
-ICON_EYE = "👁"
-ICON_EYE_OFF = "👁̸"
+from .image_utils import create_eye_icon, frame_to_photo
 
 
 def _confidence_label(accuracy: float) -> str:
@@ -28,6 +25,8 @@ class ResultView(ttk.Frame):
         self._ui_visible = True
         self._current_photo = None
         self._result_image: np.ndarray | None = None
+        self._eye_icon = create_eye_icon(self, hidden=False)
+        self._eye_off_icon = create_eye_icon(self, hidden=True)
 
         self.image_label = ttk.Label(self, background="black")
         self.image_label.pack(side="top", fill="both", expand=True)
@@ -36,19 +35,19 @@ class ResultView(ttk.Frame):
 
         self.hide_show_btn = tk.Button(
             self,
-            text=ICON_EYE_OFF,
+            image=self._eye_off_icon,
             command=self._toggle_ui,
-            font=("Segoe UI Emoji", 16),
             fg="#E8EEF8",
             bg="#1F3651",
             activeforeground="#FFFFFF",
             activebackground="#28486A",
             relief="flat",
             bd=0,
-            width=3,
-            pady=6,
+            padx=0,
+            pady=0,
+            highlightthickness=0,
         )
-        self.hide_show_btn.place(x=18, y=18, anchor="nw")
+        self.hide_show_btn.place(x=18, y=18, width=44, height=44, anchor="nw")
 
         self.retake_btn = ttk.Button(
             self,
@@ -79,11 +78,11 @@ class ResultView(ttk.Frame):
         self._ui_visible = not self._ui_visible
         if self._ui_visible:
             self._layout_controls()
-            self.hide_show_btn.config(text=ICON_EYE_OFF)
+            self.hide_show_btn.config(image=self._eye_off_icon)
         else:
             for widget in self._toggleable_widgets:
                 widget.place_forget()
-            self.hide_show_btn.config(text=ICON_EYE)
+            self.hide_show_btn.config(image=self._eye_icon)
 
     def _layout_controls(self) -> None:
         if not self._ui_visible:
