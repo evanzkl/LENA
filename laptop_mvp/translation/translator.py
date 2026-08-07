@@ -19,12 +19,16 @@ except ImportError:  # Some installations expose only translate_v3.
         translate = None
 
 try:
-    from google.auth.exceptions import DefaultCredentialsError
+    from google.api_core.client_options import ClientOptions
 except ImportError:  # Defensive fallback if auth extras are missing.
-    DefaultCredentialsError = Exception
+    ClientOptions = None
 
 DEFAULT_PROJECT_ID = "handheld-ocr-translator-503820"
 DEFAULT_LOCATION = "global"
+
+
+def _resolve_quota_project_id(project_id: str) -> str:
+    return (os.environ.get("GOOGLE_CLOUD_QUOTA_PROJECT") or project_id).strip() or project_id
 
 
 @lru_cache(maxsize=1)
@@ -32,7 +36,12 @@ def _translation_client() -> Any:
     """Create and cache a Translation API client that uses ADC credentials."""
     if translate is None:
         raise ImportError("google-cloud-translate is not installed")
-    return translate.TranslationServiceClient()
+    quota_project_id = _resolve_quota_project_id(DEFAULT_PROJECT_ID)
+    if ClientOptions is None:
+        return translate.TranslationServiceClient()
+    return translate.TranslationServiceClient(
+        client_options=ClientOptions(quota_project_id=quota_project_id)
+    )
 
 
 def _translate_with_gcloud_access_token(
@@ -135,18 +144,14 @@ def translate_texts(
             req["source_language_code"] = source_lang
         response = client.translate_text(request=req)
         translated_values = [result.translated_text for result in response.translations]
-    except DefaultCredentialsError:
+    except Exception:
         translated_values = _translate_with_gcloud_access_token(
             contents=[texts[i] for i in non_empty_indices],
             target_lang=target_lang,
             project_id=project_id,
             source_lang=source_lang,
         )
-    except Exception as exc:
-        raise RuntimeError(
-            "Google Cloud Translation request failed. "
-            "Ensure the Translation API is enabled and your gcloud auth is valid."
-        ) from exc
+        
 
     translated = texts.copy()
     for index, translated_text in zip(non_empty_indices, translated_values):
