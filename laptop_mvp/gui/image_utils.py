@@ -52,6 +52,7 @@ def frame_to_photo(
     box_w: int,
     box_h: int,
     overlay_text: str | None = None,
+    overlay_text_color: tuple[int, int, int] = (255, 255, 255),
 ) -> ImageTk.PhotoImage | None:
     """Convert a BGR frame into a Tk PhotoImage scaled to fit within box_w x box_h.
 
@@ -80,7 +81,7 @@ def frame_to_photo(
         # Dark shadow offset in every direction keeps the text legible on any background.
         for dx, dy in ((-2, 0), (2, 0), (0, -2), (0, 2)):
             draw.text((x + dx, y + dy), overlay_text, font=font, fill=(0, 0, 0))
-        draw.text((x, y), overlay_text, font=font, fill=(255, 255, 255))
+        draw.text((x, y), overlay_text, font=font, fill=overlay_text_color)
 
     return ImageTk.PhotoImage(image)
 

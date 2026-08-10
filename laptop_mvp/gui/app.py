@@ -3,6 +3,7 @@ from __future__ import annotations
 import sys
 import threading
 import tkinter as tk
+from typing import Any
 from pathlib import Path
 from tkinter import messagebox, ttk
 
@@ -28,6 +29,10 @@ class TranslatorApp(tk.Tk):
 
         self.pipeline = TranslationPipeline()
         self.camera: CameraStream | None = None
+        self._camera_status = "detected"
+        self._missing_frame_count = 0
+        self._detected_frame_count = 0
+        self._recovery_job: Any = None
 
         container = ttk.Frame(self)
         container.pack(fill="both", expand=True)
@@ -120,11 +125,53 @@ class TranslatorApp(tk.Tk):
     # -- camera preview loop ---------------------------------------------
 
     def _update_camera_preview(self) -> None:
-        if self._state == "camera" and self.camera is not None:
-            frame = self.camera.read()
-            if frame is not None:
+        if self._state == "camera":
+            frame = self.camera.read() if self.camera is not None else None
+            frame_invalid = frame is None or self._is_black_frame(frame)
+
+            if frame_invalid:
+                self._detected_frame_count = 0
+                self._missing_frame_count += 1
+                if self._missing_frame_count >= 8:
+                    self._set_camera_missing()
+            else:
+                self._missing_frame_count = 0
+                self._detected_frame_count += 1
                 self.camera_view.display_frame(frame)
+
+                if self._camera_status == "missing" and self._detected_frame_count >= 8:
+                    self._set_camera_recovering()
+
         self._preview_job = self.after(33, self._update_camera_preview)
+
+    def _is_black_frame(self, frame) -> bool:
+        return float(frame.mean()) <= 5.0
+
+    def _set_camera_missing(self) -> None:
+        if self._camera_status == "missing":
+            return
+        if self._recovery_job is not None:
+            self.after_cancel(self._recovery_job)
+            self._recovery_job = None
+        self._camera_status = "missing"
+        self.camera_view.show_status_screen("Image Not Detected...", text_color=(210, 32, 32))
+        self.camera_view.set_capture_enabled(False)
+
+    def _set_camera_recovering(self) -> None:
+        if self._camera_status != "missing":
+            return
+        self._camera_status = "recovering"
+        self.camera_view.show_status_screen("Image Detected ✔", text_color=(28, 153, 72))
+        self.camera_view.set_capture_enabled(False)
+        self._recovery_job = self.after(900, self._finish_camera_recovery)
+
+    def _finish_camera_recovery(self) -> None:
+        self._recovery_job = None
+        if self._camera_status != "recovering":
+            return
+        self._camera_status = "detected"
+        self.camera_view.clear_status_screen()
+        self.camera_view.set_capture_enabled(True)
 
     # -- language controls ---------------------------------------------
 
@@ -190,6 +237,8 @@ class TranslatorApp(tk.Tk):
     def _on_close(self) -> None:
         if self._preview_job is not None:
             self.after_cancel(self._preview_job)
+        if self._recovery_job is not None:
+            self.after_cancel(self._recovery_job)
         if self.camera is not None:
             self.camera.stop()
         self.destroy()

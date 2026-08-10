@@ -79,6 +79,10 @@ class CameraStream:
             if ok:
                 with self._lock:
                     self._frame = frame
+            else:
+                with self._lock:
+                    self._frame = None
+                time.sleep(0.03)
 
     def read(self) -> np.ndarray | None:
         """Return a copy of the most recently captured frame, or None if not ready."""

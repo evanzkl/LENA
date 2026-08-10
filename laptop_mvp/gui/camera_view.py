@@ -4,6 +4,8 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, ttk
 
+import numpy as np
+
 from .image_utils import create_eye_icon, darken_frame, frame_to_photo
 from .languages import LANGUAGE_NAMES
 
@@ -19,6 +21,7 @@ class CameraView(ttk.Frame):
         self._last_frame = None
         self._frozen = False
         self._show_live = True
+        self._status_overlay: tuple[str, tuple[int, int, int]] | None = None
         self._eye_icon = create_eye_icon(self, hidden=False)
         self._eye_off_icon = create_eye_icon(self, hidden=True)
 
@@ -105,6 +108,10 @@ class CameraView(ttk.Frame):
         self.capture_btn.state([state])
         self.upload_btn.state([state])
 
+    def set_capture_enabled(self, enabled: bool) -> None:
+        state = "!disabled" if enabled else "disabled"
+        self.capture_btn.state([state])
+
     def _layout_controls(self) -> None:
         if not self._ui_visible:
             return
@@ -139,15 +146,16 @@ class CameraView(ttk.Frame):
 
     def display_frame(self, frame_bgr) -> None:
         """Called by the live camera preview loop; ignored while showing a static/frozen image."""
+        self._last_frame = frame_bgr
         if not self._show_live:
             return
-        self._last_frame = frame_bgr
         self._redraw()
 
     def show_static_image(self, image_bgr) -> None:
         """Show *image_bgr* (e.g. an uploaded file) in place of the live feed, unfrozen."""
         self._show_live = False
         self._frozen = False
+        self._status_overlay = None
         self._last_frame = image_bgr
         self._redraw()
 
@@ -155,21 +163,44 @@ class CameraView(ttk.Frame):
         """Freeze the feed on its current frame, darken it, and overlay a processing message."""
         self._show_live = False
         self._frozen = True
+        self._status_overlay = None
         self._redraw()
 
     def unfreeze(self) -> None:
         self._frozen = False
         self._show_live = True
 
+    def show_status_screen(self, text: str, text_color: tuple[int, int, int]) -> None:
+        """Show a gray placeholder with centered status text."""
+        self._show_live = False
+        self._frozen = False
+        self._status_overlay = (text, text_color)
+        self._redraw()
+
+    def clear_status_screen(self) -> None:
+        self._status_overlay = None
+        self._show_live = True
+
     def _redraw(self) -> None:
         if self._last_frame is None:
-            return
+            base_h, base_w = 720, 1280
+        else:
+            base_h, base_w = self._last_frame.shape[:2]
+
         box_w = self.video_label.winfo_width()
         box_h = self.video_label.winfo_height()
-        if self._frozen:
+        if self._status_overlay is not None:
+            text, text_color = self._status_overlay
+            gray_frame = np.full((base_h, base_w, 3), 112, dtype=np.uint8)
+            photo = frame_to_photo(gray_frame, box_w, box_h, overlay_text=text, overlay_text_color=text_color)
+        elif self._frozen:
+            if self._last_frame is None:
+                return
             frame = darken_frame(self._last_frame)
             photo = frame_to_photo(frame, box_w, box_h, overlay_text="Processing...")
         else:
+            if self._last_frame is None:
+                return
             photo = frame_to_photo(self._last_frame, box_w, box_h)
         if photo is None:
             return
