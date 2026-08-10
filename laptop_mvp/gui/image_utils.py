@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from pathlib import Path
 
 import cv2
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont, ImageTk
+
+
+_ICON_ASSETS_DIR = Path(__file__).resolve().parent / "assets"
 
 
 @lru_cache(maxsize=32)
@@ -21,29 +25,28 @@ def create_eye_icon(
     master,
     size: int = 34,
     hidden: bool = False,
-    fill: str = "#E8EEF8",
-    stroke: str = "#E8EEF8",
-    background: str = "#1F3651",
+    fill: str = "#FFFFFF",
+    stroke: str = "#FFFFFF",
+    background: str = "#243450",
 ) -> ImageTk.PhotoImage:
-    """Create a small font-independent eye icon for the UI toggle button."""
-    image = Image.new("RGBA", (size, size), background)
-    draw = ImageDraw.Draw(image)
+    """Load user-provided eye/eye-off icons and render them as circular high-quality badges."""
+    icon_name = "hide_ui.png" if hidden else "show_ui.png"
+    icon_path = _ICON_ASSETS_DIR / icon_name
+    with Image.open(icon_path) as source:
+        image = source.convert("RGBA")
 
-    left = size * 0.14
-    top = size * 0.30
-    right = size * 0.86
-    bottom = size * 0.70
-    center_x = size / 2
-    center_y = size / 2
-    pupil_r = max(1, int(size * 0.10))
+    side = min(image.width, image.height)
+    left = (image.width - side) // 2
+    top = (image.height - side) // 2
+    image = image.crop((left, top, left + side, top + side))
 
-    draw.arc((left, top, right, bottom), start=0, end=360, fill=stroke, width=max(1, size // 12))
-    draw.ellipse((center_x - pupil_r, center_y - pupil_r, center_x + pupil_r, center_y + pupil_r), fill=fill)
-    draw.line((left - 1, center_y, right + 1, center_y), fill=stroke, width=max(1, size // 15))
+    # Keep the original art while forcing circular edges so the button appears round.
+    mask = Image.new("L", (side, side), 0)
+    mask_draw = ImageDraw.Draw(mask)
+    mask_draw.ellipse((0, 0, side - 1, side - 1), fill=255)
+    image.putalpha(mask)
 
-    if hidden:
-        draw.line((size * 0.22, size * 0.78, size * 0.78, size * 0.22), fill=stroke, width=max(2, size // 10))
-
+    image = image.resize((size, size), Image.LANCZOS)
     return ImageTk.PhotoImage(image, master=master)
 
 

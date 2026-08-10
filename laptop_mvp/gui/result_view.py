@@ -25,8 +25,8 @@ class ResultView(ttk.Frame):
         self._ui_visible = True
         self._current_photo = None
         self._result_image: np.ndarray | None = None
-        self._eye_icon = create_eye_icon(self, hidden=False)
-        self._eye_off_icon = create_eye_icon(self, hidden=True)
+        self._eye_icon = create_eye_icon(self, size=44, hidden=False)
+        self._eye_off_icon = create_eye_icon(self, size=44, hidden=True)
 
         self.image_label = ttk.Label(self, background="black")
         self.image_label.pack(side="top", fill="both", expand=True)
@@ -37,15 +37,14 @@ class ResultView(ttk.Frame):
             self,
             image=self._eye_off_icon,
             command=self._toggle_ui,
-            fg="#E8EEF8",
-            bg="#1F3651",
-            activeforeground="#FFFFFF",
-            activebackground="#28486A",
             relief="flat",
             bd=0,
+            borderwidth=0,
             padx=0,
             pady=0,
             highlightthickness=0,
+            takefocus=False,
+            overrelief="flat",
         )
         self.hide_show_btn.place(x=18, y=18, width=44, height=44, anchor="nw")
 
