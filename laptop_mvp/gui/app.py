@@ -29,10 +29,13 @@ class TranslatorApp(tk.Tk):
 
         self.pipeline = TranslationPipeline()
         self.camera: CameraStream | None = None
+        self._preferred_camera_index = camera_index
         self._camera_status = "detected"
         self._missing_frame_count = 0
         self._detected_frame_count = 0
         self._recovery_job: Any = None
+        self._reconnect_job: Any = None
+        self._reconnect_in_progress = False
 
         container = ttk.Frame(self)
         container.pack(fill="both", expand=True)
@@ -89,7 +92,7 @@ class TranslatorApp(tk.Tk):
     def _connect_camera_worker(self, camera_index: int | None) -> None:
         try:
             if camera_index is None:
-                camera_index = find_camera_index()
+                camera_index = find_camera_index(candidates=self._build_camera_candidates())
                 if camera_index is None:
                     raise RuntimeError(
                         "No working camera was found. Connect a camera and restart the app."
@@ -99,10 +102,69 @@ class TranslatorApp(tk.Tk):
         except RuntimeError as exc:
             self.after(0, self._on_camera_error, str(exc))
             return
-        self.after(0, self._on_camera_ready, camera)
+        self.after(0, self._on_camera_ready, camera, camera_index)
 
-    def _on_camera_ready(self, camera: CameraStream) -> None:
+    def _on_camera_ready(self, camera: CameraStream, camera_index: int) -> None:
+        if self.camera is not None and self.camera is not camera:
+            self.camera.stop()
         self.camera = camera
+        self._preferred_camera_index = camera_index
+
+    def _build_camera_candidates(self) -> list[int]:
+        candidates: list[int] = []
+        if self._preferred_camera_index is not None:
+            candidates.append(self._preferred_camera_index)
+        if self.camera is not None:
+            candidates.append(self.camera.index)
+        candidates.extend([0, 1, 2, 3, 4, 5])
+
+        deduped: list[int] = []
+        for idx in candidates:
+            if idx not in deduped:
+                deduped.append(idx)
+        return deduped
+
+    def _schedule_reconnect_probe(self, delay_ms: int = 1200) -> None:
+        if self._reconnect_job is not None or self._camera_status != "missing":
+            return
+        self._reconnect_job = self.after(delay_ms, self._start_reconnect_probe)
+
+    def _start_reconnect_probe(self) -> None:
+        self._reconnect_job = None
+        if self._camera_status != "missing" or self._reconnect_in_progress:
+            return
+        self._reconnect_in_progress = True
+        threading.Thread(target=self._reconnect_probe_worker, daemon=True).start()
+
+    def _cancel_reconnect_probe(self) -> None:
+        if self._reconnect_job is not None:
+            self.after_cancel(self._reconnect_job)
+            self._reconnect_job = None
+
+    def _reconnect_probe_worker(self) -> None:
+        camera = None
+        camera_index = None
+        try:
+            found_index = find_camera_index(candidates=self._build_camera_candidates(), timeout_per_candidate=0.8)
+            if found_index is not None:
+                camera = CameraStream(found_index)
+                camera.start()
+                camera_index = found_index
+        except RuntimeError:
+            camera = None
+            camera_index = None
+        self.after(0, self._on_reconnect_probe_done, camera, camera_index)
+
+    def _on_reconnect_probe_done(self, camera: CameraStream | None, camera_index: int | None) -> None:
+        self._reconnect_in_progress = False
+        if self._camera_status != "missing":
+            if camera is not None:
+                camera.stop()
+            return
+        if camera is not None and camera_index is not None:
+            self._on_camera_ready(camera, camera_index)
+            return
+        self._schedule_reconnect_probe()
 
     def _on_camera_error(self, message: str) -> None:
         messagebox.showerror("Camera error", message)
@@ -156,10 +218,12 @@ class TranslatorApp(tk.Tk):
         self._camera_status = "missing"
         self.camera_view.show_status_screen("Image Not Detected...", text_color=(210, 32, 32))
         self.camera_view.set_capture_enabled(False)
+        self._schedule_reconnect_probe(delay_ms=300)
 
     def _set_camera_recovering(self) -> None:
         if self._camera_status != "missing":
             return
+        self._cancel_reconnect_probe()
         self._camera_status = "recovering"
         self.camera_view.show_status_screen("Image Detected ✔", text_color=(28, 153, 72))
         self.camera_view.set_capture_enabled(False)
@@ -239,6 +303,7 @@ class TranslatorApp(tk.Tk):
             self.after_cancel(self._preview_job)
         if self._recovery_job is not None:
             self.after_cancel(self._recovery_job)
+        self._cancel_reconnect_probe()
         if self.camera is not None:
             self.camera.stop()
         self.destroy()

@@ -89,6 +89,10 @@ class CameraStream:
         with self._lock:
             return None if self._frame is None else self._frame.copy()
 
+    @property
+    def index(self) -> int:
+        return self._index
+
     def is_running(self) -> bool:
         return self._running
 
