@@ -145,9 +145,9 @@ class CameraView(ttk.Frame):
 
     def display_frame(self, frame_bgr) -> None:
         """Called by the live camera preview loop; ignored while showing a static/frozen image."""
-        self._last_frame = frame_bgr
         if not self._show_live:
             return
+        self._last_frame = frame_bgr
         self._redraw()
 
     def show_static_image(self, image_bgr) -> None:
