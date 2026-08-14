@@ -8,6 +8,7 @@ import numpy as np
 
 from .image_utils import create_eye_icon, darken_frame, frame_to_photo
 from .languages import LANGUAGE_NAMES
+from .widgets import RoundedButton
 
 
 class CameraView(ttk.Frame):
@@ -53,11 +54,18 @@ class CameraView(ttk.Frame):
             style="HUD.TCombobox",
         )
 
-        self.swap_btn = ttk.Button(
+        self.swap_btn = RoundedButton(
             self,
             text="<-> Swap",
             command=app.swap_languages,
-            style="Pill.TButton",
+            bg="#F9F9F9",
+            fg="#222222",
+            active_bg="#EAF2EC",
+            border_color="#D6DCE3",
+            width=104,
+            height=40,
+            radius=18,
+            font=("Segoe UI", 11, "bold"),
         )
 
         self.target_combo = ttk.Combobox(
@@ -68,18 +76,32 @@ class CameraView(ttk.Frame):
             style="HUD.TCombobox",
         )
 
-        self.upload_btn = ttk.Button(
+        self.upload_btn = RoundedButton(
             self,
             text="Upload Image",
             command=self._on_upload_image,
-            style="Pill.TButton",
+            bg="#F9F9F9",
+            fg="#222222",
+            active_bg="#EAF2EC",
+            border_color="#D6DCE3",
+            width=138,
+            height=40,
+            radius=18,
+            font=("Segoe UI", 11, "bold"),
         )
 
-        self.capture_btn = ttk.Button(
+        self.capture_btn = RoundedButton(
             self,
             text="Capture",
             command=app.capture_and_process,
-            style="Pill.TButton",
+            bg="#F9F9F9",
+            fg="#222222",
+            active_bg="#EAF2EC",
+            border_color="#D6DCE3",
+            width=104,
+            height=40,
+            radius=18,
+            font=("Segoe UI", 11, "bold"),
         )
 
         # Everything in the top row except the eye toggle itself.

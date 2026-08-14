@@ -6,6 +6,7 @@ from tkinter import ttk
 import numpy as np
 
 from .image_utils import create_eye_icon, frame_to_photo
+from .widgets import RoundedButton
 
 
 def _confidence_label(accuracy: float) -> str:
@@ -48,11 +49,18 @@ class ResultView(ttk.Frame):
         )
         self.hide_show_btn.place(x=18, y=18, width=44, height=44, anchor="nw")
 
-        self.retake_btn = ttk.Button(
+        self.retake_btn = RoundedButton(
             self,
             text="Retake",
             command=app.retake,
-            style="Pill.TButton",
+            bg="#F9F9F9",
+            fg="#222222",
+            active_bg="#EAF2EC",
+            border_color="#D6DCE3",
+            width=112,
+            height=40,
+            radius=18,
+            font=("Segoe UI", 11, "bold"),
         )
 
         self.accuracy_label = tk.Label(
