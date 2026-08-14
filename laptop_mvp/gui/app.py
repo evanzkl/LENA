@@ -195,6 +195,8 @@ class TranslatorApp(tk.Tk):
         self.after(0, self._capture_from_gpio)
 
     def _capture_from_gpio(self) -> None:
+        if self._state == "camera":
+            self.camera_view.flash_center_message("Button Detected")
         if not self._can_capture():
             return
         self.capture_and_process()

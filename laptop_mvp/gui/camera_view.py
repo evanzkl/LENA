@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import tkinter as tk
+from typing import Any
 from pathlib import Path
 from tkinter import filedialog, ttk
 
@@ -22,6 +23,8 @@ class CameraView(ttk.Frame):
         self._frozen = False
         self._show_live = True
         self._status_overlay: tuple[str, tuple[int, int, int]] | None = None
+        self._flash_overlay: tuple[str, tuple[int, int, int]] | None = None
+        self._flash_job: Any = None
         self._eye_icon = create_eye_icon(self, size=44, hidden=False)
         self._eye_off_icon = create_eye_icon(self, size=44, hidden=True)
 
@@ -180,6 +183,24 @@ class CameraView(ttk.Frame):
         self._status_overlay = None
         self._show_live = True
 
+    def flash_center_message(
+        self,
+        text: str,
+        text_color: tuple[int, int, int] = (48, 184, 88),
+        duration_ms: int = 800,
+    ) -> None:
+        """Show a transient centered message on top of the current camera content."""
+        self._flash_overlay = (text, text_color)
+        if self._flash_job is not None:
+            self.after_cancel(self._flash_job)
+        self._flash_job = self.after(duration_ms, self._clear_flash_message)
+        self._redraw()
+
+    def _clear_flash_message(self) -> None:
+        self._flash_job = None
+        self._flash_overlay = None
+        self._redraw()
+
     def _redraw(self) -> None:
         if self._last_frame is None:
             base_h, base_w = 720, 1280
@@ -188,6 +209,11 @@ class CameraView(ttk.Frame):
 
         box_w = self.video_label.winfo_width()
         box_h = self.video_label.winfo_height()
+        overlay_text = None
+        overlay_color = (255, 255, 255)
+        if self._flash_overlay is not None:
+            overlay_text, overlay_color = self._flash_overlay
+
         if self._status_overlay is not None:
             text, text_color = self._status_overlay
             gray_frame = np.full((base_h, base_w, 3), 112, dtype=np.uint8)
@@ -196,11 +222,20 @@ class CameraView(ttk.Frame):
             if self._last_frame is None:
                 return
             frame = darken_frame(self._last_frame)
-            photo = frame_to_photo(frame, box_w, box_h, overlay_text="Processing...")
+            if overlay_text is not None:
+                photo = frame_to_photo(frame, box_w, box_h, overlay_text=overlay_text, overlay_text_color=overlay_color)
+            else:
+                photo = frame_to_photo(frame, box_w, box_h, overlay_text="Processing...")
         else:
             if self._last_frame is None:
                 return
-            photo = frame_to_photo(self._last_frame, box_w, box_h)
+            photo = frame_to_photo(
+                self._last_frame,
+                box_w,
+                box_h,
+                overlay_text=overlay_text,
+                overlay_text_color=overlay_color,
+            )
         if photo is None:
             return
         self.video_label.configure(image=photo)
