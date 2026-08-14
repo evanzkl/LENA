@@ -11,6 +11,7 @@ import cv2
 
 from .camera_stream import CameraStream, find_camera_index
 from .camera_view import CameraView
+from gpio_button import GpioCaptureTrigger
 from .languages import LANGUAGES, language_by_display_name
 from .pipeline import TranslationPipeline
 from .result_view import ResultView
@@ -29,6 +30,7 @@ class TranslatorApp(tk.Tk):
 
         self.pipeline = TranslationPipeline()
         self.camera: CameraStream | None = None
+        self._processing = False
         self._preferred_camera_index = camera_index
         self._camera_status = "detected"
         self._missing_frame_count = 0
@@ -36,6 +38,7 @@ class TranslatorApp(tk.Tk):
         self._recovery_job: Any = None
         self._reconnect_job: Any = None
         self._reconnect_in_progress = False
+        self._gpio_capture = GpioCaptureTrigger(on_press=self._on_gpio_capture_request)
 
         container = ttk.Frame(self)
         container.pack(fill="both", expand=True)
@@ -47,6 +50,7 @@ class TranslatorApp(tk.Tk):
 
         self._state = "camera"
         self.camera_view.lift()
+        self._gpio_capture.start()
 
         # Connect to the camera in the background so the window appears immediately
         # instead of freezing while candidate camera indices are probed.
@@ -184,6 +188,17 @@ class TranslatorApp(tk.Tk):
     def retake(self) -> None:
         self.show_camera_state()
 
+    def _can_capture(self) -> bool:
+        return self._state == "camera" and self._camera_status == "detected" and not self._processing
+
+    def _on_gpio_capture_request(self) -> None:
+        self.after(0, self._capture_from_gpio)
+
+    def _capture_from_gpio(self) -> None:
+        if not self._can_capture():
+            return
+        self.capture_and_process()
+
     # -- camera preview loop ---------------------------------------------
 
     def _update_camera_preview(self) -> None:
@@ -248,6 +263,8 @@ class TranslatorApp(tk.Tk):
     # -- capture / processing ---------------------------------------------
 
     def capture_and_process(self) -> None:
+        if not self._can_capture():
+            return
         frame = self.camera.read() if self.camera is not None else None
         if frame is None:
             messagebox.showwarning("No camera frame", "No frame is available from the camera yet.")
@@ -264,6 +281,7 @@ class TranslatorApp(tk.Tk):
         self.after(150, lambda: self._start_processing(image))
 
     def _start_processing(self, image) -> None:
+        self._processing = True
         source_lang = language_by_display_name(self.source_lang_var.get())
         target_lang = language_by_display_name(self.target_lang_var.get())
 
@@ -286,6 +304,7 @@ class TranslatorApp(tk.Tk):
         self.after(0, self._on_process_done, result_image, accuracy, error)
 
     def _on_process_done(self, result_image, accuracy, error: str | None) -> None:
+        self._processing = False
         self.camera_view.set_controls_enabled(True)
         self.camera_view.unfreeze()
 
@@ -306,6 +325,7 @@ class TranslatorApp(tk.Tk):
         self._cancel_reconnect_probe()
         if self.camera is not None:
             self.camera.stop()
+        self._gpio_capture.stop()
         self.destroy()
 
 
