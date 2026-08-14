@@ -14,7 +14,6 @@ from .camera_view import CameraView
 from .languages import LANGUAGES, language_by_display_name
 from .pipeline import TranslationPipeline
 from .result_view import ResultView
-from .widgets import RoundedButton
 
 
 class TranslatorApp(tk.Tk):
