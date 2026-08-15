@@ -233,7 +233,12 @@ class TranslatorApp(tk.Tk):
             self.after_cancel(self._recovery_job)
             self._recovery_job = None
         self._camera_status = "missing"
-        self.camera_view.show_status_screen("Image Not Detected...", text_color=(210, 32, 32))
+        self.camera_view.show_status_screen(
+            "Image Not Detected...",
+            text_color=(210, 32, 32),
+            subtext="Please Check Camera Connection",
+            subtext_color=(245, 245, 245),
+        )
         self.camera_view.set_capture_enabled(False)
         self._schedule_reconnect_probe(delay_ms=300)
 

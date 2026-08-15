@@ -56,11 +56,14 @@ def frame_to_photo(
     box_h: int,
     overlay_text: str | None = None,
     overlay_text_color: tuple[int, int, int] = (255, 255, 255),
+    overlay_subtext: str | None = None,
+    overlay_subtext_color: tuple[int, int, int] = (255, 255, 255),
 ) -> ImageTk.PhotoImage | None:
     """Convert a BGR frame into a Tk PhotoImage scaled to fit within box_w x box_h.
 
     If *overlay_text* is given, it is drawn centered directly on the image
     (no background box) so it stays legible over whatever the frame shows.
+    If *overlay_subtext* is also given, it is rendered as a smaller second line.
     """
     if frame_bgr is None or box_w <= 1 or box_h <= 1:
         return None
@@ -76,15 +79,35 @@ def frame_to_photo(
 
     if overlay_text:
         draw = ImageDraw.Draw(image)
-        font = _load_overlay_font(max(18, new_h // 15))
-        left, top, right, bottom = draw.textbbox((0, 0), overlay_text, font=font)
-        text_w, text_h = right - left, bottom - top
-        x = (new_w - text_w) / 2 - left
-        y = (new_h - text_h) / 2 - top
-        # Dark shadow offset in every direction keeps the text legible on any background.
-        for dx, dy in ((-2, 0), (2, 0), (0, -2), (0, 2)):
-            draw.text((x + dx, y + dy), overlay_text, font=font, fill=(0, 0, 0))
-        draw.text((x, y), overlay_text, font=font, fill=overlay_text_color)
+        title_font_size = max(18, new_h // 15)
+        title_font = _load_overlay_font(title_font_size)
+        title_left, title_top, title_right, title_bottom = draw.textbbox((0, 0), overlay_text, font=title_font)
+        title_w = title_right - title_left
+        title_h = title_bottom - title_top
+
+        if overlay_subtext:
+            subtitle_font = _load_overlay_font(max(12, int(title_font_size * 0.55)))
+            sub_left, sub_top, sub_right, sub_bottom = draw.textbbox((0, 0), overlay_subtext, font=subtitle_font)
+            sub_w = sub_right - sub_left
+            sub_h = sub_bottom - sub_top
+            gap = max(6, int(title_font_size * 0.28))
+            total_h = title_h + gap + sub_h
+            title_y = (new_h - total_h) / 2 - title_top
+            sub_y = title_y + title_h + gap - sub_top
+            title_x = (new_w - title_w) / 2 - title_left
+            sub_x = (new_w - sub_w) / 2 - sub_left
+
+            for dx, dy in ((-2, 0), (2, 0), (0, -2), (0, 2)):
+                draw.text((title_x + dx, title_y + dy), overlay_text, font=title_font, fill=(0, 0, 0))
+                draw.text((sub_x + dx, sub_y + dy), overlay_subtext, font=subtitle_font, fill=(0, 0, 0))
+            draw.text((title_x, title_y), overlay_text, font=title_font, fill=overlay_text_color)
+            draw.text((sub_x, sub_y), overlay_subtext, font=subtitle_font, fill=overlay_subtext_color)
+        else:
+            x = (new_w - title_w) / 2 - title_left
+            y = (new_h - title_h) / 2 - title_top
+            for dx, dy in ((-2, 0), (2, 0), (0, -2), (0, 2)):
+                draw.text((x + dx, y + dy), overlay_text, font=title_font, fill=(0, 0, 0))
+            draw.text((x, y), overlay_text, font=title_font, fill=overlay_text_color)
 
     return ImageTk.PhotoImage(image)
 

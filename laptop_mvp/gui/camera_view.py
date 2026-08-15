@@ -22,7 +22,7 @@ class CameraView(ttk.Frame):
         self._last_frame = None
         self._frozen = False
         self._show_live = True
-        self._status_overlay: tuple[str, tuple[int, int, int]] | None = None
+        self._status_overlay: tuple[str, tuple[int, int, int], str | None, tuple[int, int, int]] | None = None
         self._flash_overlay: tuple[str, tuple[int, int, int]] | None = None
         self._flash_job: Any = None
         self._eye_icon = create_eye_icon(self, size=44, hidden=False)
@@ -172,11 +172,17 @@ class CameraView(ttk.Frame):
         self._frozen = False
         self._show_live = True
 
-    def show_status_screen(self, text: str, text_color: tuple[int, int, int]) -> None:
+    def show_status_screen(
+        self,
+        text: str,
+        text_color: tuple[int, int, int],
+        subtext: str | None = None,
+        subtext_color: tuple[int, int, int] = (255, 255, 255),
+    ) -> None:
         """Show a gray placeholder with centered status text."""
         self._show_live = False
         self._frozen = False
-        self._status_overlay = (text, text_color)
+        self._status_overlay = (text, text_color, subtext, subtext_color)
         self._redraw()
 
     def clear_status_screen(self) -> None:
@@ -215,9 +221,17 @@ class CameraView(ttk.Frame):
             overlay_text, overlay_color = self._flash_overlay
 
         if self._status_overlay is not None:
-            text, text_color = self._status_overlay
+            text, text_color, subtext, subtext_color = self._status_overlay
             gray_frame = np.full((base_h, base_w, 3), 112, dtype=np.uint8)
-            photo = frame_to_photo(gray_frame, box_w, box_h, overlay_text=text, overlay_text_color=text_color)
+            photo = frame_to_photo(
+                gray_frame,
+                box_w,
+                box_h,
+                overlay_text=text,
+                overlay_text_color=text_color,
+                overlay_subtext=subtext,
+                overlay_subtext_color=subtext_color,
+            )
         elif self._frozen:
             if self._last_frame is None:
                 return
