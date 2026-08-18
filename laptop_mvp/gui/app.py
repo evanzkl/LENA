@@ -25,13 +25,17 @@ class TranslatorApp(tk.Tk):
     def __init__(self, camera_index: int | None = None) -> None:
         super().__init__()
         self.title("Handheld OCR Translator")
-        self.geometry("1100x750")
-        self.minsize(800, 600)
-        self.attributes("-fullscreen", True)
-        self.bind("<Escape>", lambda _event: self.attributes("-fullscreen", False))
         self.update_idletasks()
         screen_w = self.winfo_screenwidth()
         screen_h = self.winfo_screenheight()
+        # Set explicit geometry to the real screen size: some window managers
+        # (e.g. minimal embedded WMs on the touchscreen) don't honor -fullscreen,
+        # which would otherwise leave the window at a fixed size larger than the
+        # screen and show only a cropped top-left portion of it.
+        self.geometry(f"{screen_w}x{screen_h}+0+0")
+        self.minsize(800, 600)
+        self.attributes("-fullscreen", True)
+        self.bind("<Escape>", lambda _event: self.attributes("-fullscreen", False))
         self.ui_scale = max(0.5, min(1.3, min(screen_w / _REFERENCE_SIZE[0], screen_h / _REFERENCE_SIZE[1])))
         self._configure_styles()
 
