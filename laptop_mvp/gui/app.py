@@ -204,6 +204,7 @@ class TranslatorApp(tk.Tk):
     # -- camera preview loop ---------------------------------------------
 
     def _update_camera_preview(self) -> None:
+        self._gpio_capture.poll()
         if self._state == "camera":
             frame = self.camera.read() if self.camera is not None else None
             frame_invalid = frame is None or self._is_black_frame(frame)
