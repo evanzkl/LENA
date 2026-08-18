@@ -17,6 +17,10 @@ from .pipeline import TranslationPipeline
 from .result_view import ResultView
 
 
+# Layout/fonts below are sized for this reference resolution; ui_scale adapts them to the real screen.
+_REFERENCE_SIZE = (1100, 750)
+
+
 class TranslatorApp(tk.Tk):
     def __init__(self, camera_index: int | None = None) -> None:
         super().__init__()
@@ -25,6 +29,10 @@ class TranslatorApp(tk.Tk):
         self.minsize(800, 600)
         self.attributes("-fullscreen", True)
         self.bind("<Escape>", lambda _event: self.attributes("-fullscreen", False))
+        self.update_idletasks()
+        screen_w = self.winfo_screenwidth()
+        screen_h = self.winfo_screenheight()
+        self.ui_scale = max(0.5, min(1.3, min(screen_w / _REFERENCE_SIZE[0], screen_h / _REFERENCE_SIZE[1])))
         self._configure_styles()
 
         self.source_lang_var = tk.StringVar(value=LANGUAGES[0].display_name)
@@ -61,6 +69,9 @@ class TranslatorApp(tk.Tk):
         self._preview_job = self.after(33, self._update_camera_preview)
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
+    def scaled(self, value: int) -> int:
+        return max(1, round(value * self.ui_scale))
+
     def _configure_styles(self) -> None:
         style = ttk.Style(self)
         for theme_name in ("vista", "xpnative", "clam"):
@@ -71,8 +82,8 @@ class TranslatorApp(tk.Tk):
                 continue
         style.configure(
             "Pill.TButton",
-            font=("Segoe UI", 11, "bold"),
-            padding=(12, 7),
+            font=("Segoe UI", self.scaled(11), "bold"),
+            padding=(self.scaled(12), self.scaled(7)),
         )
         style.map(
             "Pill.TButton",
@@ -84,8 +95,8 @@ class TranslatorApp(tk.Tk):
             background="#F9F9F9",
             foreground="#222222",
             borderwidth=0,
-            arrowsize=14,
-            padding=(8, 6),
+            arrowsize=self.scaled(14),
+            padding=(self.scaled(8), self.scaled(6)),
         )
         style.map(
             "HUD.TCombobox",

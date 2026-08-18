@@ -25,8 +25,9 @@ class CameraView(ttk.Frame):
         self._status_overlay: tuple[str, tuple[int, int, int], str | None, tuple[int, int, int]] | None = None
         self._flash_overlay: tuple[str, tuple[int, int, int]] | None = None
         self._flash_job: Any = None
-        self._eye_icon = create_eye_icon(self, size=44, hidden=False)
-        self._eye_off_icon = create_eye_icon(self, size=44, hidden=True)
+        icon_size = app.scaled(44)
+        self._eye_icon = create_eye_icon(self, size=icon_size, hidden=False)
+        self._eye_off_icon = create_eye_icon(self, size=icon_size, hidden=True)
 
         self.video_label = ttk.Label(self, background="black")
         self.video_label.pack(side="top", fill="both", expand=True)
@@ -46,7 +47,7 @@ class CameraView(ttk.Frame):
             takefocus=False,
             overrelief="flat",
         )
-        self.hide_show_btn.place(x=18, y=18, width=44, height=44, anchor="nw")
+        self.hide_show_btn.place(x=app.scaled(18), y=app.scaled(18), width=icon_size, height=icon_size, anchor="nw")
 
         self.source_combo = ttk.Combobox(
             self,
@@ -118,17 +119,17 @@ class CameraView(ttk.Frame):
         if not self._ui_visible:
             return
         control_specs = [
-            (self.source_combo, 150),
-            (self.swap_btn, 104),
-            (self.target_combo, 150),
-            (self.upload_btn, 138),
-            (self.capture_btn, 104),
+            (self.source_combo, self.app.scaled(150)),
+            (self.swap_btn, self.app.scaled(104)),
+            (self.target_combo, self.app.scaled(150)),
+            (self.upload_btn, self.app.scaled(138)),
+            (self.capture_btn, self.app.scaled(104)),
         ]
-        gap = 12
-        top_y = 22
-        height = 40
+        gap = self.app.scaled(12)
+        top_y = self.app.scaled(22)
+        height = self.app.scaled(40)
         total_w = sum(width for _, width in control_specs) + gap * (len(control_specs) - 1)
-        start_x = max((self.winfo_width() - total_w) // 2, 92)
+        start_x = max((self.winfo_width() - total_w) // 2, self.app.scaled(92))
         cursor_x = start_x
         for widget, width in control_specs:
             widget.place(x=cursor_x, y=top_y, width=width, height=height)

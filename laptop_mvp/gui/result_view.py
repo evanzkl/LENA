@@ -25,8 +25,9 @@ class ResultView(ttk.Frame):
         self._ui_visible = True
         self._current_photo = None
         self._result_image: np.ndarray | None = None
-        self._eye_icon = create_eye_icon(self, size=44, hidden=False)
-        self._eye_off_icon = create_eye_icon(self, size=44, hidden=True)
+        icon_size = app.scaled(44)
+        self._eye_icon = create_eye_icon(self, size=icon_size, hidden=False)
+        self._eye_off_icon = create_eye_icon(self, size=icon_size, hidden=True)
 
         self.image_label = ttk.Label(self, background="black")
         self.image_label.pack(side="top", fill="both", expand=True)
@@ -46,7 +47,7 @@ class ResultView(ttk.Frame):
             takefocus=False,
             overrelief="flat",
         )
-        self.hide_show_btn.place(x=18, y=18, width=44, height=44, anchor="nw")
+        self.hide_show_btn.place(x=app.scaled(18), y=app.scaled(18), width=icon_size, height=icon_size, anchor="nw")
 
         self.retake_btn = ttk.Button(
             self,
@@ -60,13 +61,13 @@ class ResultView(ttk.Frame):
             text="",
             anchor="center",
             justify="center",
-            font=("Segoe UI", 11, "bold"),
+            font=("Segoe UI", app.scaled(11), "bold"),
             fg="#1C7D45",
             bg="#F9F9F9",
             relief="solid",
             bd=1,
-            padx=14,
-            pady=8,
+            padx=app.scaled(14),
+            pady=app.scaled(8),
         )
 
         # Everything in the top row except the eye toggle itself.
@@ -87,14 +88,14 @@ class ResultView(ttk.Frame):
         if not self._ui_visible:
             return
         control_specs = [
-            (self.retake_btn, 112),
-            (self.accuracy_label, 310),
+            (self.retake_btn, self.app.scaled(112)),
+            (self.accuracy_label, self.app.scaled(310)),
         ]
-        gap = 12
-        top_y = 22
-        height = 40
+        gap = self.app.scaled(12)
+        top_y = self.app.scaled(22)
+        height = self.app.scaled(40)
         total_w = sum(width for _, width in control_specs) + gap * (len(control_specs) - 1)
-        start_x = max((self.winfo_width() - total_w) // 2, 92)
+        start_x = max((self.winfo_width() - total_w) // 2, self.app.scaled(92))
         cursor_x = start_x
         for widget, width in control_specs:
             widget.place(x=cursor_x, y=top_y, width=width, height=height)
