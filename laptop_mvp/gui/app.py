@@ -23,6 +23,8 @@ class TranslatorApp(tk.Tk):
         self.title("Handheld OCR Translator")
         self.geometry("1100x750")
         self.minsize(800, 600)
+        self.attributes("-fullscreen", True)
+        self.bind("<Escape>", lambda _event: self.attributes("-fullscreen", False))
         self._configure_styles()
 
         self.source_lang_var = tk.StringVar(value=LANGUAGES[0].display_name)
