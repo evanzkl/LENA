@@ -38,10 +38,16 @@ class GpioCaptureTrigger:
             return False
 
         self._gpio = gpio
-        gpio.setwarnings(False)
-        gpio.setmode(gpio.BOARD)
-        gpio.setup(self._pin, gpio.IN, pull_up_down=gpio.PUD_UP)
-        self._last_value = gpio.input(self._pin)
+        try:
+            gpio.setwarnings(False)
+            gpio.setmode(gpio.BOARD)
+            gpio.setup(self._pin, gpio.IN, pull_up_down=gpio.PUD_UP)
+            self._last_value = gpio.input(self._pin)
+        except Exception as exc:
+            # e.g. the line is claimed by another driver (busy pinmux/peripheral)
+            print(f"[gpio pin {self._pin}] setup failed, button disabled: {exc}")
+            self._gpio = None
+            return False
         self._enabled = True
         print(f"[gpio pin {self._pin}] button armed (polling mode, idle value={self._last_value})")
         return True
