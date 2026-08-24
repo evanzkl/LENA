@@ -59,7 +59,7 @@ class CameraView(ttk.Frame):
 
         self.swap_btn = ttk.Button(
             self,
-            text="<-> Swap",
+            text="Swap",
             command=app.swap_languages,
             style="Pill.TButton",
         )
