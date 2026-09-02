@@ -3,6 +3,7 @@ from __future__ import annotations
 import sys
 import threading
 import tkinter as tk
+import time
 from queue import Empty, Queue
 from typing import Any
 from pathlib import Path
@@ -334,15 +335,17 @@ class TranslatorApp(tk.Tk):
         ).start()
 
     def _process_worker(self, frame, ocr_lang: str, translate_lang: str) -> None:
+        started_at = time.perf_counter()
         try:
             result_image, accuracy = self.pipeline.process(frame, ocr_lang, translate_lang)
             error = None
         except Exception as exc:  # noqa: BLE001 - surface any pipeline failure to the user
             result_image, accuracy, error = None, None, str(exc)
+        processing_time = time.perf_counter() - started_at
 
-        self._post_ui_event(self._on_process_done, result_image, accuracy, error)
+        self._post_ui_event(self._on_process_done, result_image, accuracy, processing_time, error)
 
-    def _on_process_done(self, result_image, accuracy, error: str | None) -> None:
+    def _on_process_done(self, result_image, accuracy, processing_time: float, error: str | None) -> None:
         self._processing = False
         self.camera_view.set_controls_enabled(True)
         self.camera_view.unfreeze()
@@ -351,7 +354,7 @@ class TranslatorApp(tk.Tk):
             messagebox.showerror("Processing failed", error)
             return
 
-        self.result_view.display_result(result_image, accuracy)
+        self.result_view.display_result(result_image, accuracy, processing_time)
         self.show_result_state()
 
     # -- shutdown ---------------------------------------------

@@ -89,7 +89,7 @@ class ResultView(ttk.Frame):
             return
         control_specs = [
             (self.retake_btn, self.app.scaled(112)),
-            (self.accuracy_label, self.app.scaled(310)),
+            (self.accuracy_label, self.app.scaled(410)),
         ]
         gap = self.app.scaled(12)
         top_y = self.app.scaled(22)
@@ -101,10 +101,13 @@ class ResultView(ttk.Frame):
             widget.place(x=cursor_x, y=top_y, width=width, height=height)
             cursor_x += width + gap
 
-    def display_result(self, image_bgr: np.ndarray, accuracy: float) -> None:
+    def display_result(self, image_bgr: np.ndarray, accuracy: float, processing_time: float) -> None:
         self._result_image = image_bgr
         self.accuracy_label.config(
-            text=f"Accuracy: {accuracy:.1f}% ({_confidence_label(accuracy)})"
+            text=(
+                f"Accuracy: {accuracy:.1f}% ({_confidence_label(accuracy)})  "
+                f"|  Processing: {processing_time:.2f}s"
+            )
         )
         self._redraw()
 
