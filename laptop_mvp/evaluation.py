@@ -8,7 +8,7 @@ from typing import Any
 
 from config import ENGINES
 from metrics import evaluate_pair
-from ocr_engines import run_easyocr, run_paddleocr, run_tesseract
+from OCR.paddle_ocr import run_paddle_ocr
 
 
 def evaluate_engine(
@@ -16,8 +16,6 @@ def evaluate_engine(
     image_paths: list[Path],
     gt_map: dict[str, str],
     output_dir: Path,
-    psm: int,
-    easy_reader: Any = None,
     paddle_engine: Any = None,
 ) -> dict[str, object]:
     engine_output_dir = output_dir / engine_name
@@ -35,18 +33,11 @@ def evaluate_engine(
 
     for image_path in image_paths:
         start = time.perf_counter()
-        if engine_name == "tesseract":
-            pred_text = run_tesseract(image_path, psm)
-        elif engine_name == "easyocr":
-            if easy_reader is None:
-                raise RuntimeError("EasyOCR reader was not initialized")
-            pred_text = run_easyocr(easy_reader, image_path)
-        elif engine_name == "paddleocr":
-            if paddle_engine is None:
-                raise RuntimeError("PaddleOCR engine was not initialized")
-            pred_text = run_paddleocr(paddle_engine, image_path)
-        else:
+        if engine_name != "paddleocr":
             raise ValueError(f"Unknown engine: {engine_name}")
+        if paddle_engine is None:
+            raise RuntimeError("PaddleOCR engine was not initialized")
+        pred_text = run_paddle_ocr(paddle_engine, image_path)
 
         processing_time = time.perf_counter() - start
         total_time_seconds += processing_time
@@ -120,8 +111,6 @@ def evaluate_all_engines(
     image_paths: list[Path],
     gt_map: dict[str, str],
     output_dir: Path,
-    psm: int,
-    easy_reader: Any,
     paddle_engine: Any,
 ) -> dict[str, dict[str, object]]:
     all_summaries: dict[str, dict[str, object]] = {}
@@ -131,8 +120,6 @@ def evaluate_all_engines(
             image_paths=image_paths,
             gt_map=gt_map,
             output_dir=output_dir,
-            psm=psm,
-            easy_reader=easy_reader,
             paddle_engine=paddle_engine,
         )
         all_summaries[engine_name] = summary

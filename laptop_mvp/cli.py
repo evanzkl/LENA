@@ -34,19 +34,4 @@ def parse_args() -> argparse.Namespace:
         default=10,
         help="How many images to process from the sorted list (default: 10)",
     )
-    parser.add_argument(
-        "--tesseract-cmd",
-        type=str,
-        default=None,
-        help=(
-            "Optional explicit path to tesseract executable, e.g. "
-            "C:\\Program Files\\Tesseract-OCR\\tesseract.exe"
-        ),
-    )
-    parser.add_argument(
-        "--psm",
-        type=int,
-        default=3,
-        help="Tesseract Page Segmentation Mode (default: 3)",
-    )
     return parser.parse_args()
