@@ -1,0 +1,12 @@
+{
+    "name": "Handheld OCR Translator",
+    "short_name": "OCR Translator",
+    "start_url": ".",
+    "display": "standalone",
+    "background_color": "#243450",
+    "theme_color": "#243450",
+    "description": "Upload an image, translate detected text, and view the overlaid result.",
+    "orientation": "portrait-primary",
+    "prefer_related_applications": false,
+    "icons": []
+}

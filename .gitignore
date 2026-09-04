@@ -55,6 +55,9 @@ cover/
 *.mo
 *.pot
 
+# Flutter SDK auto-provisioned into the workspace (not project source)
+wireless_mvp/flutter/
+
 # Django stuff:
 *.log
 local_settings.py
