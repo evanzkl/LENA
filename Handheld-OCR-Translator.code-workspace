@@ -4,7 +4,7 @@
 			"path": "."
 		},
 		{
-			"path": "../icdar2013"
+			"path": "../../../Users/evanz/OneDrive/Documents/PlatformIO/Projects/ESP32"
 		}
 	],
 	"settings": {}
