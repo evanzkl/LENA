@@ -72,6 +72,7 @@ def _process_image_bytes(content: bytes, source_lang: str, target_lang: str) -> 
 
     image = cv2.imdecode(np.frombuffer(content, dtype=np.uint8), cv2.IMREAD_COLOR)
     if image is None:
+        print(f"[decode-failed] {len(content)} bytes, header={content[:16].hex()}")
         raise HTTPException(status_code=400, detail="Could not decode uploaded image")
 
     started_at = time.perf_counter()
